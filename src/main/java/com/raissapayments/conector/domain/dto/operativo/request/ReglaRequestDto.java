@@ -1,0 +1,35 @@
+package com.raissapayments.conector.domain.dto.operativo.request;
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+@Data
+@NoArgsConstructor
+@Valid
+public class ReglaRequestDto {
+    private Long id;
+    private String descripcion;
+    private String moneda;
+    private BigDecimal limiteInferior;
+    private BigDecimal limiteSuperior;
+
+    @NotNull
+    private LocalDateTime fechaAuditoria;
+
+    @NotBlank
+    @Size(max = 15)
+    private String usuarioAuditoria;
+
+    @NotBlank @Size(max = 30)
+    private String terminalAuditoria;
+
+    @NotBlank @Size(max = 20)
+    private String ipAuditoria;
+}
