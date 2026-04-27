@@ -9,40 +9,40 @@ public interface SolicitudFlujoService {
      *
      * @param req Datos de solicitud
      */
-    void validar(CambioEstadoRequestDto req);
+    Long validar(CambioEstadoRequestDto req);
 
     /**
      * Envía a autorización y cambia estado a PENDIENTE_AUTORIZACION.
      *
      * @param req datos de solicitud y auditoría
      */
-    void enviarAutorizacion(CambioEstadoRequestDto req);
+    Long enviarAutorizacion(CambioEstadoRequestDto req);
 
     /**
      * Autoriza y cambia estado a AUTORIZADO.
      *
      * @param req datos de solicitud y auditoría
      */
-    void autorizar(CambioEstadoRequestDto req);
+    Long autorizar(CambioEstadoRequestDto req);
 
     /**
      * Ejecuta y cambia estado a PROCESADO_TOTAL.
      *
      * @param req datos de solicitud y auditoría
      */
-    void ejecutar(CambioEstadoRequestDto req);
+    Long ejecutar(CambioEstadoRequestDto req);
 
     /**
      * Observa y cambia estado a OBSERVADO, registrando observación.
      *
      * @param req datos de solicitud, auditoría y observación
      */
-    void observar(ObservacionCambioEstadoRequestDto req);
+    Long observar(ObservacionCambioEstadoRequestDto req);
 
     /**
      * Anula y cambia estado a ANULADO, registrando observación.
      *
      * @param req datos de solicitud, auditoría y observación
      */
-    void anular(ObservacionCambioEstadoRequestDto req);
+    Long anular(ObservacionCambioEstadoRequestDto req);
 }

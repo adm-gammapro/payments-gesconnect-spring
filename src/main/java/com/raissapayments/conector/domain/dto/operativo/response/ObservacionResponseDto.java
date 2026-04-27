@@ -14,6 +14,8 @@ public class ObservacionResponseDto {
     private Long id;
     private String descripcion;
     private String tipoObservacion;
+    private String eventoObservacion;
+    private String usuarioObservacion;
     private EstadoRegistroEnum estadoRegistro;
     private String audiFechIns;
     private Long solicitudId;

@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,7 +26,9 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 public class ObservacionEntity extends Auditoria {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "observacion_generator")
+    @SequenceGenerator(name = "observacion_generator", sequenceName = "public.observacion_id_seq", allocationSize = 1)
+    @Column(name = "id")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -37,4 +40,10 @@ public class ObservacionEntity extends Auditoria {
 
     @Column(name = "tipo_observacion", length = 1, nullable = false)
     private String tipoObservacion;
+
+    @Column(name = "evento", length = 1, nullable = false)
+    private String evento;
+
+    @Column(name = "usuario", length = 1, nullable = false)
+    private String usuario;
 }

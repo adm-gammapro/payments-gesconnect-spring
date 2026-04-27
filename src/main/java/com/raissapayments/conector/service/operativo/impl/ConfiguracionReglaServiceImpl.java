@@ -1,7 +1,9 @@
 package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.enums.commons.EstadoRegistroEnum;
+import com.raissa.comun.general.service.AbstractService;
 import com.raissapayments.conector.domain.dto.operativo.request.ConfiguracionReglaRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ConfiguracionReglaSearchDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ConfiguracionReglaResponseDto;
 import com.raissapayments.conector.domain.entity.operativo.ConfiguracionReglaEntity;
 import com.raissapayments.conector.domain.mapper.operativo.ConfiguracionReglaMapper;
@@ -17,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class ConfiguracionReglaServiceImpl implements ConfiguracionReglaService {
+public class ConfiguracionReglaServiceImpl extends AbstractService implements ConfiguracionReglaService {
     private final ConfiguracionReglaRepository configuracionReglaRepository;
     private final ConfiguracionReglaMapper configuracionReglaMapper;
 
@@ -69,12 +71,17 @@ public class ConfiguracionReglaServiceImpl implements ConfiguracionReglaService 
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ConfiguracionReglaResponseDto> search(Long codigoRegla,
-                                                      Long codigoCategoria,
-                                                      String codigoModo,
-                                                      String estadoRegistro,
-                                                      Pageable pageable) {
-        var page = configuracionReglaRepository.search(codigoRegla, codigoCategoria, codigoModo, estadoRegistro, pageable);
+    public Page<ConfiguracionReglaResponseDto> search(ConfiguracionReglaSearchDto searchDto) {
+        Pageable pageable = buildPageable(searchDto);
+
+        Page<ConfiguracionReglaEntity> page = configuracionReglaRepository.search(
+                searchDto.getCodigoRegla(),
+                searchDto.getCodigoCategoria(),
+                searchDto.getCodigoModo(),
+                searchDto.getEstadoRegistro(),
+                pageable
+        );
+
         var dtos = page.getContent().stream()
                 .map(configuracionReglaMapper::entityToResponseDto)
                 .toList();

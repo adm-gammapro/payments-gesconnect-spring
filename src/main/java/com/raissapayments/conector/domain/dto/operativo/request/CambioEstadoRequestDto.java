@@ -1,5 +1,6 @@
 package com.raissapayments.conector.domain.dto.operativo.request;
 
+import com.raissapayments.conector.domain.dto.commons.InstitucionFinancieraDto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -8,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -18,6 +20,8 @@ public class CambioEstadoRequestDto {
 
     @NotBlank
     private String usuario;
+
+    private List<InstitucionFinancieraDto> listInstituciones;
 
     @NotNull
     private LocalDateTime fechaAuditoria;

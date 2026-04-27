@@ -42,4 +42,28 @@ public class MapperUtil {
         if (s == null || s.isEmpty()) return null;
         return LocalDate.parse(s, DateTimeFormatter.ofPattern("dd/MM/yyyy"));
     }
+
+    /**
+     * Método personalizado para convertir LocalDateTime a String con fecha y hora
+     */
+    @Named("mapLocalDateTimeToStringDateTime")
+    public String mapLocalDateTimeToStringDateTime(LocalDateTime date) {
+        return date != null ? date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) : null;
+    }
+
+    @Named("mapBooleanToStringSN")
+    public String mapBooleanToStringSN(Boolean value) {
+        if (value == null) {
+            return null;
+        }
+        return value ? "S" : "N";
+    }
+
+    @Named("mapStringSNToBoolean")
+    public Boolean mapStringSNToBoolean(String value) {
+        if (value == null) {
+            return null;
+        }
+        return "S".equalsIgnoreCase(value.trim());
+    }
 }

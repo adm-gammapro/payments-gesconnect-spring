@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -24,7 +25,8 @@ import java.math.BigDecimal;
 @Table(name = "regla", schema = "public")
 public class ReglaEntity extends Auditoria {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "regla_generator")
+    @SequenceGenerator(name = "regla_generator", sequenceName = "public.regla_codigo_seq", allocationSize = 1)
     @Column(name = "codigo")
     private Long id;
 

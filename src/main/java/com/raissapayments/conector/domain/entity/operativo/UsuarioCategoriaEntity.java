@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,7 +27,8 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 public class UsuarioCategoriaEntity extends Auditoria {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "usuario_categoria_generator")
+    @SequenceGenerator(name = "usuario_categoria_generator", sequenceName = "public.usuario_categoria_codigo_seq", allocationSize = 1)
     @Column(name = "codigo")
     private Long id;
 

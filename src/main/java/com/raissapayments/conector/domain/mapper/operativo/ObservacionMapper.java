@@ -18,6 +18,8 @@ public abstract class ObservacionMapper extends EntityMapper<ObservacionEntity, 
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "solicitud", source = "solicitudId")
+    @Mapping(target = "evento", source = "eventoObservacion")
+    @Mapping(target = "usuario", source = "usuarioObservacion")
     @Mapping(target = "estadoRegistro", constant = Constante.ESTADO_ACTIVO)
     @Mapping(target = "audiFechIns", source = "fechaAuditoria")
     @Mapping(target = "audiUsuario", source = "usuarioAuditoria")
@@ -30,7 +32,9 @@ public abstract class ObservacionMapper extends EntityMapper<ObservacionEntity, 
     public abstract ObservacionEntity requestDtoToEntity(ObservacionRequestDto dto);
 
     @Mapping(target = "solicitudId", source = "solicitud.id")
+    @Mapping(target = "eventoObservacion", source = "evento")
+    @Mapping(target = "usuarioObservacion", source = "usuario")
     @Mapping(target = "estadoRegistro", source = "estadoRegistro", qualifiedByName = "mapStringToEstadoRegistroEnum")
-    @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToString")
+    @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToStringDateTime")
     public abstract ObservacionResponseDto entityToResponseDto(ObservacionEntity entity);
 }

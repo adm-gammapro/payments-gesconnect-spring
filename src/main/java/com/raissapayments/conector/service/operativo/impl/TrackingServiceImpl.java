@@ -1,8 +1,10 @@
 package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.util.Constante;
+import com.raissapayments.conector.domain.dto.operativo.response.TrackingResponseDto;
 import com.raissapayments.conector.domain.entity.operativo.SolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.TrackingEntity;
+import com.raissapayments.conector.domain.mapper.operativo.TrackingMapper;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.TrackingRepository;
 import com.raissapayments.conector.service.operativo.TrackingService;
@@ -11,12 +13,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class TrackingServiceImpl implements TrackingService {
     private final TrackingRepository trackingRepository;
     private final SolicitudRepository solicitudRepository;
+    private final TrackingMapper trackingMapper;
 
     @Override
     @Transactional
@@ -52,6 +56,14 @@ public class TrackingServiceImpl implements TrackingService {
         tracking.setAudiIp(ipAuditoria.trim());
 
         return trackingRepository.save(tracking);
+    }
+
+    public List<TrackingResponseDto> listTracking(Long solicitudId) {
+        List<TrackingEntity> list = trackingRepository.findBySolicitudIdAndEstadoRegistroOrderByIdDesc(solicitudId, Constante.ESTADO_ACTIVO);
+
+        return list.stream()
+                .map(trackingMapper::entityToResponseDto)
+                .toList();
     }
 
     private boolean isBlank(String s) {

@@ -14,6 +14,8 @@ public class AbonoSolicitudResponseDto {
     private String moneda;
     private BigDecimal montoDestino;
     private String beneficiario;
+    private String ndocBeneficiarioValidado;
+    private String nombreBeneficiarioValidado;
     private String estadoEjecucion;
     private String detalleEjecucion;
 

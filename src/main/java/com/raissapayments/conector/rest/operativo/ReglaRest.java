@@ -1,6 +1,8 @@
 package com.raissapayments.conector.rest.operativo;
 
 import com.raissapayments.conector.domain.dto.operativo.request.ReglaRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ReglaSearchDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ConfiguracionReglaResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ReglaResponseDto;
 import com.raissapayments.conector.service.operativo.ReglaService;
 import jakarta.validation.Valid;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -46,18 +50,17 @@ public class ReglaRest {
     }
 
     @PostMapping("/list-page-regla")
-    public ResponseEntity<Page<ReglaResponseDto>> getPageRegla(
-            @RequestParam(required = false) String filtroDescripcion,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
-
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));
-        return ResponseEntity.ok(reglaService.listPage(filtroDescripcion, pageable));
+    public ResponseEntity<Page<ReglaResponseDto>> getPageRegla(@RequestBody ReglaSearchDto searchDto) {
+        return ResponseEntity.ok(reglaService.listPage(searchDto));
     }
 
-    @GetMapping("/get-regla")
-    public ResponseEntity<ReglaResponseDto> getRegla(
-            @RequestParam(name = "codigoRegla") Long codigoRegla) {
-        return ResponseEntity.ok(reglaService.get(codigoRegla));
+    @PostMapping("/get-regla")
+    public ResponseEntity<ReglaResponseDto> getRegla(@RequestBody ReglaRequestDto requestDto) {
+        return ResponseEntity.ok(reglaService.get(requestDto.getCodigo()));
+    }
+
+    @PostMapping("/list-regla")
+    public ResponseEntity<List<ReglaResponseDto>> list() {
+        return ResponseEntity.ok(reglaService.listReglas());
     }
 }

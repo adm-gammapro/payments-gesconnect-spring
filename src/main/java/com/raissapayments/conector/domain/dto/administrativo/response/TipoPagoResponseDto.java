@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class TipoPagoResponseDto {
-    private Long id;
+    private Long codigo;
     private String descripcion;
     private EstadoRegistroEnum estadoRegistro;
     private String audiFechIns;

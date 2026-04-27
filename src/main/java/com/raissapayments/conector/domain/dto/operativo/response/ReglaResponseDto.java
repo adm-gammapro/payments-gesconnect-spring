@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 
 @Data
 public class ReglaResponseDto {
-    private Long id;
+    private Long codigo;
     private String descripcion;
     private String moneda;
     private BigDecimal limiteInferior;

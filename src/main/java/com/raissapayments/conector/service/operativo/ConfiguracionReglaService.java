@@ -1,9 +1,9 @@
 package com.raissapayments.conector.service.operativo;
 
 import com.raissapayments.conector.domain.dto.operativo.request.ConfiguracionReglaRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ConfiguracionReglaSearchDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ConfiguracionReglaResponseDto;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 public interface ConfiguracionReglaService {
     ConfiguracionReglaResponseDto create(ConfiguracionReglaRequestDto dto);
@@ -11,9 +11,5 @@ public interface ConfiguracionReglaService {
     ConfiguracionReglaResponseDto delete(ConfiguracionReglaRequestDto dto);
     ConfiguracionReglaResponseDto get(Long codigo);
 
-    Page<ConfiguracionReglaResponseDto> search(Long codigoRegla,
-                                               Long codigoCategoria,
-                                               String codigoModo,
-                                               String estadoRegistro,
-                                               Pageable pageable);
+    Page<ConfiguracionReglaResponseDto> search(ConfiguracionReglaSearchDto searchDto);
 }

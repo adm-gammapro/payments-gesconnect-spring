@@ -19,6 +19,7 @@ public abstract class TipoPagoMapper extends EntityMapper<TipoPagoEntity, Long> 
 
     @Mapping(target = "estadoRegistro", source = "estadoRegistro", qualifiedByName = "mapStringToEstadoRegistroEnum")
     @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToString")
+    @Mapping(target = "codigo", source = "id")
     public abstract TipoPagoResponseDto entityToResponseDto(TipoPagoEntity entity);
 
     @Mapping(target = "id", ignore = true)

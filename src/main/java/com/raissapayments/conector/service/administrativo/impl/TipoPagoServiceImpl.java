@@ -1,8 +1,14 @@
 package com.raissapayments.conector.service.administrativo.impl;
 
 import com.raissa.comun.enums.commons.EstadoRegistroEnum;
+import com.raissa.comun.enums.commons.SortOrderEnum;
+import com.raissa.comun.general.service.AbstractService;
+import com.raissa.comun.util.Constante;
 import com.raissapayments.conector.domain.dto.administrativo.request.TipoPagoRequestDto;
+import com.raissapayments.conector.domain.dto.administrativo.request.TipoPagoSearchDto;
+import com.raissapayments.conector.domain.dto.administrativo.response.CategoriaResponseDto;
 import com.raissapayments.conector.domain.dto.administrativo.response.TipoPagoResponseDto;
+import com.raissapayments.conector.domain.entity.administrativo.CategoriaEntity;
 import com.raissapayments.conector.domain.entity.administrativo.TipoPagoEntity;
 import com.raissapayments.conector.domain.mapper.administrativo.TipoPagoMapper;
 import com.raissapayments.conector.domain.repository.administrativo.TipoPagoRepository;
@@ -11,7 +17,9 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +27,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class TipoPagoServiceImpl implements TipoPagoService {
+public class TipoPagoServiceImpl extends AbstractService implements TipoPagoService {
     private final TipoPagoRepository tipoPagoRepository;
     private final TipoPagoMapper tipoPagoMapper;
 
@@ -41,7 +49,7 @@ public class TipoPagoServiceImpl implements TipoPagoService {
     @Override
     @Transactional
     public TipoPagoResponseDto update(TipoPagoRequestDto requestDto) {
-        TipoPagoEntity entity = getEntity(requestDto.getId());
+        TipoPagoEntity entity = getEntity(requestDto.getCodigo());
         tipoPagoMapper.update(entity, requestDto);
 
         entity.setAudiFechaMod(requestDto.getFechaAuditoria());
@@ -56,7 +64,7 @@ public class TipoPagoServiceImpl implements TipoPagoService {
     @Override
     @Transactional
     public TipoPagoResponseDto delete(TipoPagoRequestDto requestDto) {
-        TipoPagoEntity entity = getEntity(requestDto.getId());
+        TipoPagoEntity entity = getEntity(requestDto.getCodigo());
         entity.setEstadoRegistro(EstadoRegistroEnum.NO_VIGENTE.getValor());
 
         entity.setAudiFechaMod(requestDto.getFechaAuditoria());
@@ -76,16 +84,34 @@ public class TipoPagoServiceImpl implements TipoPagoService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<TipoPagoResponseDto> listPage(String filtroDescripcion, Pageable pageable) {
-        Page<TipoPagoEntity> page = (filtroDescripcion == null || filtroDescripcion.isBlank())
-                ? tipoPagoRepository.findAll(pageable)
-                : tipoPagoRepository.findByDescripcionContainingIgnoreCase(filtroDescripcion, pageable);
+    public Page<TipoPagoResponseDto> listPage(TipoPagoSearchDto searchDto) {
+        Pageable pageable = buildPageable(searchDto);
+
+        String descripcionFiltrada = (searchDto.getDescripcion() != null)
+                ? searchDto.getDescripcion().trim()
+                : "";
+
+        Page<TipoPagoEntity> page = tipoPagoRepository.findByDescripcionContainingIgnoreCaseAndEstadoRegistro(
+                descripcionFiltrada,
+                searchDto.getEstadoRegistro(),
+                pageable
+        );
 
         List<TipoPagoResponseDto> dtos = page.getContent().stream()
                 .map(tipoPagoMapper::entityToResponseDto)
                 .toList();
 
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TipoPagoResponseDto> listTipoPago() {
+        List<TipoPagoEntity> list = tipoPagoRepository.findByEstadoRegistro(Constante.ESTADO_ACTIVO);
+
+        return list.stream()
+                .map(tipoPagoMapper::entityToResponseDto)
+                .toList();
     }
 
     private TipoPagoEntity getEntity(Long codigo) {

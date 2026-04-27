@@ -1,18 +1,24 @@
 package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.util.Constante;
+import com.raissapayments.conector.domain.dto.operativo.request.CambioEstadoRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ObservacionRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ObservacionResponseDto;
+import com.raissapayments.conector.domain.entity.commons.EstadoSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.ObservacionEntity;
 import com.raissapayments.conector.domain.entity.operativo.SolicitudEntity;
 import com.raissapayments.conector.domain.mapper.operativo.ObservacionMapper;
+import com.raissapayments.conector.domain.repository.commons.EstadoSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.ObservacionRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.service.operativo.ObservacionService;
+import com.raissapayments.conector.service.operativo.TrackingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -42,6 +48,23 @@ public class ObservacionServiceImpl implements ObservacionService {
         entity.setTipoObservacion(tipo.trim().toUpperCase());
 
         ObservacionEntity saved = observacionRepository.save(entity);
+
         return observacionMapper.entityToResponseDto(saved);
+    }
+
+    @Override
+    public List<ObservacionResponseDto> listarObservacion(ObservacionRequestDto request) {
+        if (request == null) throw new IllegalArgumentException("El request es obligatorio");
+
+        Long solicitudId = request.getSolicitudId();
+        if (solicitudId == null) {
+            throw new IllegalArgumentException("El id de solicitud es obligatorio");
+        }
+
+        List<ObservacionEntity> list = observacionRepository.findBySolicitudIdAndEstadoRegistroOrderByIdDesc(solicitudId, Constante.ESTADO_ACTIVO);
+
+        return list.stream()
+                .map(observacionMapper::entityToResponseDto)
+                .toList();
     }
 }

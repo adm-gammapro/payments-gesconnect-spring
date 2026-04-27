@@ -17,6 +17,7 @@ public abstract class SolicitudMapper extends EntityMapper<SolicitudEntity, Long
     @Mapping(target = "estadoSolicitud", source = "estadoSolicitud.codigo")
     @Mapping(target = "estadoRegistro", source = "estadoRegistro", qualifiedByName = "mapStringToEstadoRegistroEnum")
     @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToString")
+    @Mapping(target = "fechaCarga", source = "fechaCarga", qualifiedByName = "mapLocalDateTimeToStringDateTime")
     @Mapping(target = "cargos", source = "cargos")
     public abstract SolicitudResponseDto entityToResponseDto(SolicitudEntity entity);
 }

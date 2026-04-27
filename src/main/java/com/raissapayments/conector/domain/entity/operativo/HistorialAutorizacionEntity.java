@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,7 +30,8 @@ import java.time.LocalDateTime;
 @Table(name = "historial_autorizacion", schema = "public")
 public class HistorialAutorizacionEntity extends Auditoria {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "historial_autorizacion_generator")
+    @SequenceGenerator(name = "historial_autorizacion_generator", sequenceName = "public.historial_autorizacion_codigo_seq", allocationSize = 1)
     @Column(name = "codigo")
     private Long id;
 

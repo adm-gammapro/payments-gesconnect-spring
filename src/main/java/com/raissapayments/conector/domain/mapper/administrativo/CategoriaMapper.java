@@ -18,6 +18,7 @@ public abstract class CategoriaMapper extends EntityMapper<CategoriaEntity, Long
 
     @Mapping(target = "estadoRegistro", source = "estadoRegistro", qualifiedByName = "mapStringToEstadoRegistroEnum")
     @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToString")
+    @Mapping(target = "codigo", source = "id")
     public abstract CategoriaResponseDto entityToResponseDto(CategoriaEntity entity);
 
     @Mapping(target = "id", ignore = true)

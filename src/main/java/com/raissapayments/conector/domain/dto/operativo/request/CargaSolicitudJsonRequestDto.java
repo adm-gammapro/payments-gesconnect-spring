@@ -17,6 +17,7 @@ public class CargaSolicitudJsonRequestDto {
     Long codigoCliente;
     String usuarioCarga;
     List<LineaCargaRequestDto> lineas;
+    String tipoCarga;
 
     @NotNull
     private LocalDateTime fechaAuditoria;

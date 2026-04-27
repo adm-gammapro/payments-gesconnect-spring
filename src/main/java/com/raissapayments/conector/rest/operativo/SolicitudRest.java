@@ -31,83 +31,81 @@ public class SolicitudRest {
      * Ejecuta validaciones y cambia estado a VALIDADO
      *
      * @param req Datos de la solicitud
-     * @return {@link Void}
+     * @return {@link Long}
      */
     @PostMapping("/validar")
-    public ResponseEntity<Void> validar(@Valid @RequestBody CambioEstadoRequestDto req) {
-        flujoService.validar(req);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> validar(@Valid @RequestBody CambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.validar(req));
     }
 
     /**
      * Envía a autorización y cambia estado a PENDIENTE_AUTORIZACION.
      *
      * @param req datos de la solicitud y auditoría
-     * @return {@link Void}
+     * @return {@link Long}
      */
     @PostMapping("/enviar-autorizacion")
-    public ResponseEntity<Void> enviarAutorizacion(@Valid @RequestBody CambioEstadoRequestDto req) {
-        flujoService.enviarAutorizacion(req);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> enviarAutorizacion(@Valid @RequestBody CambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.enviarAutorizacion(req));
     }
 
     /**
      * Autoriza y cambia estado a AUTORIZADO.
      *
      * @param req datos de la solicitud y auditoría
-     * @return {@link Void}
+     * @return {@link Long}
      */
     @PostMapping("/autorizar")
-    public ResponseEntity<Void> autorizar(@Valid @RequestBody CambioEstadoRequestDto req) {
-        flujoService.autorizar(req);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> autorizar(@Valid @RequestBody CambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.autorizar(req));
     }
 
     /**
      * Ejecuta y cambia estado a PROCESADO_TOTAL.
      *
      * @param req datos de la solicitud y auditoría
-     * @return {@link Void}
+     * @return {@link Long}
      */
     @PostMapping("/ejecutar")
-    public ResponseEntity<Void> ejecutar(@Valid @RequestBody CambioEstadoRequestDto req) {
-        flujoService.ejecutar(req);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> ejecutar(@Valid @RequestBody CambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.ejecutar(req));
+    }
+
+    /**
+     * Ejecuta y cambia estado a PROCESADO_TOTAL.
+     *
+     * @param req datos de la solicitud y auditoría
+     * @return {@link Long}
+     */
+    @PostMapping("/reprocesar")
+    public ResponseEntity<Long> reprocesar(@Valid @RequestBody CambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.ejecutar(req));
     }
 
     /**
      * Observa y cambia estado a OBSERVADO, registrando observación.
      *
      * @param req datos de la solicitud, auditoría y observación
-     * @return {@link Void}
+     * @return {@link Long}
      */
     @PostMapping("/observar")
-    public ResponseEntity<Void> observar(@Valid @RequestBody ObservacionCambioEstadoRequestDto req) {
-        flujoService.observar(req);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> observar(@Valid @RequestBody ObservacionCambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.observar(req));
     }
 
     /**
      * Anula y cambia estado a ANULADO, registrando observación.
      *
      * @param req datos de la solicitud, auditoría y observación
-     * @return {@link Void}
+     * @return {@link Long}
      */
     @PostMapping("/anular")
-    public ResponseEntity<Void> anular(@Valid @RequestBody ObservacionCambioEstadoRequestDto req) {
-        flujoService.anular(req);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Long> anular(@Valid @RequestBody ObservacionCambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.anular(req));
     }
 
     @PostMapping("/list-page-solicitud")
-    public ResponseEntity<Page<SolicitudResponseDto>> listarCuentasPage(@RequestBody(required = false) SolicitudSearchDto solicitudSearch,
-                                                                        @RequestParam(defaultValue = "0") int page,
-                                                                        @RequestParam(defaultValue = "5") int size) {
-        Pageable pageable = PageRequest.of(
-                Math.max(page, 0),  // Asegura que el número de página no sea negativo
-                Math.max(size, 1)   // Asegura que el tamaño de página sea al menos 1
-        );
-
-        return ResponseEntity.ok(solicitudService.getPageSolicitudes(solicitudSearch, pageable));
+    public ResponseEntity<Page<SolicitudResponseDto>> listarCuentasPage(@RequestBody(required = false) SolicitudSearchDto solicitudSearch) {
+        return ResponseEntity.ok(solicitudService.getPageSolicitudes(solicitudSearch));
     }
 }

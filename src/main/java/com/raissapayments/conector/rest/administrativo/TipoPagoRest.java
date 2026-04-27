@@ -1,6 +1,8 @@
 package com.raissapayments.conector.rest.administrativo;
 
 import com.raissapayments.conector.domain.dto.administrativo.request.TipoPagoRequestDto;
+import com.raissapayments.conector.domain.dto.administrativo.request.TipoPagoSearchDto;
+import com.raissapayments.conector.domain.dto.administrativo.response.CategoriaResponseDto;
 import com.raissapayments.conector.domain.dto.administrativo.response.TipoPagoResponseDto;
 import com.raissapayments.conector.service.administrativo.TipoPagoService;
 import jakarta.validation.Valid;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Slf4j
 @RestController
@@ -46,18 +50,17 @@ public class TipoPagoRest {
     }
 
     @PostMapping("/list-page-tipo-pago")
-    public ResponseEntity<Page<TipoPagoResponseDto>> getPageTipoPago(
-            @RequestParam(required = false) String filtroDescripcion,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
-
-        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));
-        return ResponseEntity.ok(tipoPagoService.listPage(filtroDescripcion, pageable));
+    public ResponseEntity<Page<TipoPagoResponseDto>> getPageTipoPago(@RequestBody TipoPagoSearchDto searchDto) {
+        return ResponseEntity.ok(tipoPagoService.listPage(searchDto));
     }
 
-    @GetMapping("/get-tipo-pago")
-    public ResponseEntity<TipoPagoResponseDto> getTipoPago(
-            @RequestParam(name = "codigoTipoPago") Long codigoTipoPago) {
-        return ResponseEntity.ok(tipoPagoService.get(codigoTipoPago));
+    @PostMapping("/get-tipo-pago")
+    public ResponseEntity<TipoPagoResponseDto> getTipoPago(@RequestBody TipoPagoRequestDto requestDto) {
+        return ResponseEntity.ok(tipoPagoService.get(requestDto.getCodigo()));
+    }
+
+    @PostMapping("/list-tipo-pago")
+    public ResponseEntity<List<TipoPagoResponseDto>> list() {
+        return ResponseEntity.ok(tipoPagoService.listTipoPago());
     }
 }

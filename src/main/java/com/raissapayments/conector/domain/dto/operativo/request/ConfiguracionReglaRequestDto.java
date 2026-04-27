@@ -17,7 +17,7 @@ public class ConfiguracionReglaRequestDto {
     private Long codigoRegla;
     private Long codigoCategoria;
     private String codigoModo;
-    private Boolean predeterminado;
+    private String predeterminado;
     private Integer prioridad;
 
     @NotNull

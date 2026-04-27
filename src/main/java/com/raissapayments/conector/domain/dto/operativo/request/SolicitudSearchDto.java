@@ -1,11 +1,19 @@
 package com.raissapayments.conector.domain.dto.operativo.request;
 
-import lombok.Data;
+import com.raissa.comun.general.dto.SearchRequestDTO;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
 
-@Data
-public class SolicitudSearchDto {
+import java.util.List;
+
+@EqualsAndHashCode(callSuper = true)
+@Getter
+@Setter
+public class SolicitudSearchDto extends SearchRequestDTO {
     private String usuario;
-    private String fecha;
+    private String fechaInicial;
+    private String fechaFinal;
     private String codigo;
-    private String estadoSolicitud;
+    private List<String> estadoSolicitud;
 }

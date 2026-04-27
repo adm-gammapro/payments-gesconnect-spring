@@ -15,4 +15,8 @@ public class ObservacionCambioEstadoRequestDto extends CambioEstadoRequestDto {
     @NotBlank
     @Size(max = 2000)
     private String descripcionObservacion;
+
+    private String eventoObservacion;
+
+    private String usuarioObservacion;
 }

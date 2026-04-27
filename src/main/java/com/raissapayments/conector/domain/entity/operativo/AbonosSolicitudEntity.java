@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,7 +28,8 @@ import java.math.BigDecimal;
 @SuperBuilder
 public class AbonosSolicitudEntity extends Auditoria {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "abonos_generator")
+    @SequenceGenerator(name = "abonos_generator", sequenceName = "public.abonos_solicitud_codigo_seq", allocationSize = 1)
     @Column(name = "codigo")
     private Long id;
 
@@ -49,6 +51,9 @@ public class AbonosSolicitudEntity extends Auditoria {
 
     @Column(name = "beneficiario", length = 500)
     private String beneficiario;
+
+    @Column(name = "mismo_titular", length = 1)
+    private String mismotitular;
 
     @Column(name = "estado_ejecucion", length = 1, nullable = false)
     private String estadoEjecucion;

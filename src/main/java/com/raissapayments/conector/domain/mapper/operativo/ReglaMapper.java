@@ -19,6 +19,7 @@ public abstract class ReglaMapper extends EntityMapper<ReglaEntity, Long> {
 
     @Mapping(target = "estadoRegistro", source = "estadoRegistro", qualifiedByName = "mapStringToEstadoRegistroEnum")
     @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToString")
+    @Mapping(target = "codigo", source = "id")
     public abstract ReglaResponseDto entityToResponseDto(ReglaEntity entity);
 
     @Mapping(target = "id", ignore = true)

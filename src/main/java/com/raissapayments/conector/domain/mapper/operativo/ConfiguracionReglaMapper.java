@@ -23,8 +23,12 @@ public abstract class ConfiguracionReglaMapper extends EntityMapper<Configuracio
 
     @Mapping(target = "codigo", source = "id")
     @Mapping(target = "codigoRegla", source = "regla.id")
+    @Mapping(target = "descripcionRegla", source = "regla.descripcion")
     @Mapping(target = "codigoCategoria", source = "categoria.id")
+    @Mapping(target = "descripcionCategoria", source = "categoria.descripcion")
     @Mapping(target = "codigoModo", source = "modo.codigo")
+    @Mapping(target = "descripcionModo", source = "modo.descripcion")
+    @Mapping(target = "predeterminado", source = "predeterminado", qualifiedByName = "mapBooleanToStringSN")
     @Mapping(target = "estadoRegistro", source = "estadoRegistro", qualifiedByName = "mapStringToEstadoRegistroEnum")
     @Mapping(target = "audiFechIns", source = "audiFechIns", qualifiedByName = "mapLocalDateTimeToString")
     public abstract ConfiguracionReglaResponseDto entityToResponseDto(ConfiguracionReglaEntity entity);
@@ -33,6 +37,7 @@ public abstract class ConfiguracionReglaMapper extends EntityMapper<Configuracio
     @Mapping(target = "categoria", source = "codigoCategoria")
     @Mapping(target = "regla", source = "codigoRegla")
     @Mapping(target = "modo", source = "codigoModo")
+    @Mapping(target = "predeterminado", source = "predeterminado", qualifiedByName = "mapStringSNToBoolean")
     @Mapping(target = "estadoRegistro", constant = Constante.ESTADO_ACTIVO)
     @Mapping(target = "audiFechIns", source = "fechaAuditoria")
     @Mapping(target = "audiUsuario", source = "usuarioAuditoria")
@@ -48,6 +53,7 @@ public abstract class ConfiguracionReglaMapper extends EntityMapper<Configuracio
     @Mapping(target = "categoria", source = "codigoCategoria")
     @Mapping(target = "regla", source = "codigoRegla")
     @Mapping(target = "modo", source = "codigoModo")
+    @Mapping(target = "predeterminado", source = "predeterminado", qualifiedByName = "mapStringSNToBoolean")
     @Mapping(target = "estadoRegistro", ignore = true)
     @Mapping(target = "audiFechIns", ignore = true)
     @Mapping(target = "audiUsuario", ignore = true)

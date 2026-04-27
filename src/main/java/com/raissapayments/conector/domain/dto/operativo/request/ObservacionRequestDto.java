@@ -24,6 +24,10 @@ public class ObservacionRequestDto {
     @Pattern(regexp = "O|A", message = "tipoObservacion debe ser O o A")
     private String tipoObservacion; // O=Observación, A=Anulación
 
+    private String eventoObservacion;
+
+    private String usuarioObservacion;
+
     @NotNull
     private LocalDateTime fechaAuditoria;
 

@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -22,7 +23,8 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "tipo_pago", schema = "public")
 public class TipoPagoEntity extends Auditoria {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "tipo_pago_generator")
+    @SequenceGenerator(name = "tipo_pago_generator", sequenceName = "public.tipo_pago_codigo_seq", allocationSize = 1)
     @Column(name = "codigo")
     private Long id;
 

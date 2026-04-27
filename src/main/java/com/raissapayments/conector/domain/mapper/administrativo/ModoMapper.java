@@ -18,7 +18,7 @@ import org.mapstruct.Mapping;
                 MapperUtil.class
         }
 )
-public abstract class ModoMapper  extends EntityMapper<ModoEntity, Long> {
+public abstract class ModoMapper  extends EntityMapper<ModoEntity, String> {
     protected ModoMapper() {
         super(ModoEntity.class);
     }

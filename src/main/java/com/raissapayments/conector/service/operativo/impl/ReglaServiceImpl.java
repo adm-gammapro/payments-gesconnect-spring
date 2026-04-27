@@ -1,8 +1,14 @@
 package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.enums.commons.EstadoRegistroEnum;
+import com.raissa.comun.general.service.AbstractService;
+import com.raissa.comun.util.Constante;
 import com.raissapayments.conector.domain.dto.operativo.request.ReglaRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ReglaSearchDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ConfiguracionReglaResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ReglaResponseDto;
+import com.raissapayments.conector.domain.entity.administrativo.TipoPagoEntity;
+import com.raissapayments.conector.domain.entity.operativo.ConfiguracionReglaEntity;
 import com.raissapayments.conector.domain.entity.operativo.ReglaEntity;
 import com.raissapayments.conector.domain.mapper.operativo.ReglaMapper;
 import com.raissapayments.conector.domain.repository.operativo.ReglaRepository;
@@ -19,7 +25,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class ReglaServiceImpl implements ReglaService {
+public class ReglaServiceImpl extends AbstractService implements ReglaService {
     private final ReglaRepository reglaRepository;
     private final ReglaMapper reglaMapper;
 
@@ -41,7 +47,7 @@ public class ReglaServiceImpl implements ReglaService {
     @Override
     @Transactional
     public ReglaResponseDto update(ReglaRequestDto requestDto) {
-        ReglaEntity entity = getEntity(requestDto.getId());
+        ReglaEntity entity = getEntity(requestDto.getCodigo());
         reglaMapper.update(entity, requestDto);
 
         entity.setAudiFechaMod(requestDto.getFechaAuditoria());
@@ -56,7 +62,7 @@ public class ReglaServiceImpl implements ReglaService {
     @Override
     @Transactional
     public ReglaResponseDto delete(ReglaRequestDto requestDto) {
-        ReglaEntity entity = getEntity(requestDto.getId());
+        ReglaEntity entity = getEntity(requestDto.getCodigo());
         entity.setEstadoRegistro(EstadoRegistroEnum.NO_VIGENTE.getValor());
 
         entity.setAudiFechaMod(requestDto.getFechaAuditoria());
@@ -76,16 +82,38 @@ public class ReglaServiceImpl implements ReglaService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReglaResponseDto> listPage(String filtroDescripcion, Pageable pageable) {
-        Page<ReglaEntity> page = (filtroDescripcion == null || filtroDescripcion.isBlank())
-                ? reglaRepository.findAll(pageable)
-                : reglaRepository.findByDescripcionContainingIgnoreCase(filtroDescripcion, pageable);
+    public Page<ReglaResponseDto> listPage(ReglaSearchDto searchDto) {
+        Pageable pageable = buildPageable(searchDto);
+
+        String descripcionFiltrada = (searchDto.getDescripcion() != null)
+                ? searchDto.getDescripcion().trim()
+                : "";
+        String monedaFiltrada = (searchDto.getMoneda() != null)
+                ? searchDto.getMoneda().trim()
+                : "";
+
+        Page<ReglaEntity> page = reglaRepository.findByDescripcionContainingIgnoreCaseAndMonedaContainingIgnoreCaseAndEstadoRegistro(
+                descripcionFiltrada,
+                monedaFiltrada,
+                searchDto.getEstadoRegistro(),
+                pageable
+        );
 
         List<ReglaResponseDto> dtos = page.getContent().stream()
                 .map(reglaMapper::entityToResponseDto)
                 .toList();
 
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReglaResponseDto> listReglas() {
+        List<ReglaEntity> list = reglaRepository.findByEstadoRegistro(Constante.ESTADO_ACTIVO);
+
+        return list.stream()
+                .map(reglaMapper::entityToResponseDto)
+                .toList();
     }
 
     private ReglaEntity getEntity(Long codigo) {

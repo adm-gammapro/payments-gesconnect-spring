@@ -18,6 +18,7 @@ import com.raissapayments.conector.domain.repository.operativo.CargoSolicitudRep
 import com.raissapayments.conector.domain.repository.operativo.ObservacionRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.service.operativo.CargaSolicitudService;
+import com.raissapayments.conector.service.operativo.TrackingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
     private final ObservacionRepository obsRepo;
     private final EstadoSolicitudRepository estadoSolicitudRepo;
     private final ObservacionMapper observacionMapper;
+    private final TrackingService trackingService;
 
     @Override
     @Transactional
@@ -64,6 +66,23 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
 
         persistirResultados(finalSolicitud,
                             parseResult);
+
+        String evento = "";
+        if(req.getTipoCarga().equals(Constante.CARGA_EXCEL)){
+            evento = "REGISTRADO_EXCEL";
+        } else {
+            evento = "REGISTRADO_JSON";
+        }
+
+        trackingService.crear(
+                finalSolicitud.getId(),
+                evento,
+                req.getUsuarioCarga(),
+                LocalDateTime.now(),
+                req.getUsuarioAuditoria(),
+                req.getTerminalAuditoria(),
+                req.getIpAuditoria()
+        );
 
         return new CargaSolicitudResponseDto(
                 finalSolicitud.getId(),
@@ -163,6 +182,8 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
             String codEnt = safe(l.getCodigoEntidadFinanciera());
             String moneda = safe(l.getMoneda());
             BigDecimal monto = safe(l.getMonto());
+            String beneficiario = safe(l.getBeneficiario());
+            String mismoTitular = safe(l.getMismoTitular());
 
             // Validaciones de vacíos
             if (isEmpty(tipo)) observaciones.add(obs(Constante.CONSTANTE_VALOR_LINEA + (i+1) + ": campo Tipo vacío", usuarioAuditoria, terminalAuditoria, ipAuditoria));
@@ -202,6 +223,8 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
                 ab.setCodigoEntidadFinanciera(codEnt);
                 ab.setMoneda(moneda);
                 ab.setMontoDestino(monto != null ? monto.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                ab.setBeneficiario(beneficiario);
+                ab.setMismotitular(mismoTitular);
                 ab.setEstadoEjecucion(Constante.ESTADO_EJECUCION_PENDIENTE);
                 ab.setDetalleEjecucion("");
                 ab.setEstadoRegistro(EstadoRegistroEnum.VIGENTE.getValor());

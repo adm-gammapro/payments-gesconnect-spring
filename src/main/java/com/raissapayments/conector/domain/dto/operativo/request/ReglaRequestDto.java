@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @Valid
 public class ReglaRequestDto {
-    private Long id;
+    private Long codigo;
     private String descripcion;
     private String moneda;
     private BigDecimal limiteInferior;

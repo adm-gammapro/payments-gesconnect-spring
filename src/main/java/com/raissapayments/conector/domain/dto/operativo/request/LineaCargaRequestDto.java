@@ -16,4 +16,5 @@ public class LineaCargaRequestDto {
     String moneda;
     BigDecimal monto;
     String beneficiario;
+    String mismoTitular;
 }
