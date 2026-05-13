@@ -22,12 +22,10 @@ import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.Group
 import com.raissapayments.conector.domain.entity.operativo.AbonosSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.CargoSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.CuentaOrdenanteEntity;
-import com.raissapayments.conector.domain.entity.operativo.RespuestaAbonoSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.SolicitudEntity;
 import com.raissapayments.conector.domain.repository.operativo.AbonosSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.CargoSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.CuentaOrdenanteRepository;
-import com.raissapayments.conector.domain.repository.operativo.RespuestaAbonoSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.exception.operativo.ConnectionException;
 import com.raissapayments.conector.service.operativo.ApiService;
@@ -58,7 +56,6 @@ public class EjecucionServiceImpl implements EjecucionService {
     private final CargoSolicitudRepository cargoSolicitudRepository;
     private final AbonosSolicitudRepository abonosSolicitudRepository;
     private final CuentaOrdenanteRepository cuentaOrdenanteRepository;
-    private final RespuestaAbonoSolicitudRepository respuestaAbonoSolicitudRepository;
 
     private final ApiService apiService;
 
@@ -97,7 +94,7 @@ public class EjecucionServiceImpl implements EjecucionService {
                 continue;
             }
 
-            List<AbonosSolicitudEntity> listAbonos = abonosSolicitudRepository.findByCargoSolicitudIdAndEstadoRegistro(cargo.getId(),
+            List<AbonosSolicitudEntity> listAbonos = abonosSolicitudRepository.findAbonosPendientesConsultaByCargo(cargo.getId(),
                     Constante.ESTADO_ACTIVO);
             for (AbonosSolicitudEntity abono : listAbonos) {
                 consulta = new ConsultaTransRequestDto();
@@ -210,7 +207,7 @@ public class EjecucionServiceImpl implements EjecucionService {
                 continue;
             }
 
-            List<AbonosSolicitudEntity> listAbonos = abonosSolicitudRepository.findByCargoSolicitudIdAndEstadoRegistro(cargo.getId(),
+            List<AbonosSolicitudEntity> listAbonos = abonosSolicitudRepository.findAbonosPendientesConfirmacionByCargo(cargo.getId(),
                     Constante.ESTADO_ACTIVO);
             for (AbonosSolicitudEntity abono : listAbonos) {
                 confirmacion = new ConfirmaTransRequestDto();
@@ -230,12 +227,8 @@ public class EjecucionServiceImpl implements EjecucionService {
 
                 confirmacion.setImporte(abono.getMontoDestino());
 
-                RespuestaAbonoSolicitudEntity respuestaConsulta = respuestaAbonoSolicitudRepository.findByCodigoAbonoSolicitudAndEstadoRegistro(
-                        abono.getId(),
-                        Constante.ESTADO_ACTIVO);
-
-                confirmacion.setTransferenciaId(respuestaConsulta.getTransferenciaId());
-                confirmacion.setMpe001idl(respuestaConsulta.getMpe001idl());
+                confirmacion.setTransferenciaId(abono.getTransferenciaId());
+                confirmacion.setMpe001idl(abono.getMpe001idl());
 
                 listConfirmaciones.add(confirmacion);
             }
@@ -332,19 +325,18 @@ public class EjecucionServiceImpl implements EjecucionService {
                                                 "Observacion en la operacion de la cuenta %s con importe %s: %s",
                                                 request.getCciBeneficiario(),
                                                 request.getImporte(),
-                                                responseConsultaindividual.getMessage()
+                                                responseConsultaindividual.getDscRespuesta()
                                         );
 
                                         mensajeFinal.append(mensaje).append(Constante.SEPARADOR_ERRORES);
                                     }
 
-                                } else {
-                                    registrarOperacion(responseConsultaindividual,
-                                            usuarioEjecucion,
-                                            fechaOperacion,
-                                            ipOperacion,
-                                            terminalOperacion);
                                 }
+                                actualizarDatosConsulta(responseConsultaindividual,
+                                        usuarioEjecucion,
+                                        fechaOperacion,
+                                        ipOperacion,
+                                        terminalOperacion);
                             }
                         } else {
                             mensajeFinal.append("Ocurrio un problema al realizar consulta de transferencias: ")
@@ -399,20 +391,20 @@ public class EjecucionServiceImpl implements EjecucionService {
                                             Function.identity()
                                     ));
 
-                            for (ConfirmaTransGetResponseDto responseConfirmacionindividual : response.getListRespuestaConfirmacionTransferencia()) {
-                                registrarConfirmacionOperacion(responseConfirmacionindividual,
+                            for (ConfirmaTransGetResponseDto responseConfirmacionIndividual : response.getListRespuestaConfirmacionTransferencia()) {
+                                actualizarDatosConfirmacion(responseConfirmacionIndividual,
                                         usuarioEjecucion,
                                         fechaOperacion,
                                         ipOperacion,
                                         terminalOperacion);
-                                if (responseConfirmacionindividual.getStatus().equals(Constante.KEY_ERROR_CODE)) {
-                                    ConfirmaTransRequestDto request = mapaConfirmacion.get(responseConfirmacionindividual.getIdAbonoSolicitud());
+                                if (responseConfirmacionIndividual.getStatus().equals(Constante.KEY_ERROR_CODE)) {
+                                    ConfirmaTransRequestDto request = mapaConfirmacion.get(responseConfirmacionIndividual.getIdAbonoSolicitud());
                                     if (request != null) {
                                         String mensaje = String.format(
                                                 "Observacion en la operacion de la cuenta %s con importe %s: %s",
                                                 request.getCuentaBaaS(),
                                                 request.getImporte(),
-                                                responseConfirmacionindividual.getMessage()
+                                                responseConfirmacionIndividual.getMessage()
                                         );
 
                                         mensajeFinal.append(mensaje).append(" | ");
@@ -427,7 +419,7 @@ public class EjecucionServiceImpl implements EjecucionService {
                     }
                 }
             }
-            if(mensajeFinal.isEmpty()) {
+            if (mensajeFinal.isEmpty()) {
                 ejecucionResponse.setStatus(Constante.KEY_SUCCESS_CODE);
             } else {
                 ejecucionResponse.setStatus(Constante.KEY_ERROR_CODE);
@@ -441,68 +433,67 @@ public class EjecucionServiceImpl implements EjecucionService {
         return ejecucionResponse;
     }
 
-    private void registrarOperacion(ConsultaTransGetResponseDto responseConsultaindividual,
-                                    String usuarioEjecucion,
-                                    LocalDateTime fechaOperacion,
-                                    String ipOperacion,
-                                    String terminalOperacion){
+    private void actualizarDatosConsulta(ConsultaTransGetResponseDto responseConsultaIndividual,
+                                         String usuarioEjecucion,
+                                         LocalDateTime fechaOperacion,
+                                         String ipOperacion,
+                                         String terminalOperacion) {
         try {
-            RespuestaAbonoSolicitudEntity respuesta = new RespuestaAbonoSolicitudEntity();
-            respuesta.setCodigoSolicitud(responseConsultaindividual.getIdSolicitud());
-            respuesta.setCodigoCargoSolicitud(responseConsultaindividual.getIdCargoSolicitud());
-            respuesta.setCodigoAbonoSolicitud(responseConsultaindividual.getIdAbonoSolicitud());
-            respuesta.setTipoDocBeneficiario(responseConsultaindividual.getTipoDocBeneficiario());
-            respuesta.setDocumentoBeneficiario(responseConsultaindividual.getDocumentoBeneficiario());
-            respuesta.setNombreBeneficiario(responseConsultaindividual.getNombreBeneficiario());
-            respuesta.setDireccionBeneficiario(responseConsultaindividual.getDireccionBeneficiario());
-            respuesta.setTelefonoBeneficiario(responseConsultaindividual.getTelefonoBeneficiario());
-            respuesta.setMovilBeneficiario(responseConsultaindividual.getMovilBeneficiario());
-            respuesta.setMismoTitularOut(responseConsultaindividual.getMismoTitularOut());
-            respuesta.setTransferenciaId(responseConsultaindividual.getTransferenciaId());
-            respuesta.setItf(responseConsultaindividual.getItf());
-            respuesta.setComisionOrigen(responseConsultaindividual.getComisionOrigen());
-            respuesta.setComisionDestino(responseConsultaindividual.getComisionDestino());
-            respuesta.setMpe001idl(responseConsultaindividual.getMpe001idl());
-            respuesta.setCodRespuestaConsulta(responseConsultaindividual.getCodRespuesta());
-            respuesta.setDscRespuestaConsulta(responseConsultaindividual.getDscRespuesta());
-            respuesta.setErrorConsulta(responseConsultaindividual.getMessage());
-            respuesta.setEstadoEjecucionConsulta(responseConsultaindividual.getEstado());
-            respuesta.setFechaConsulta(responseConsultaindividual.getFecha());
-            respuesta.setHoraConsulta(responseConsultaindividual.getHora());
+            AbonosSolicitudEntity abono = abonosSolicitudRepository.findByIdAndEstadoRegistro(
+                    responseConsultaIndividual.getIdAbonoSolicitud(),
+                    Constante.ESTADO_ACTIVO);
 
-            respuesta.setEstadoRegistro(Constante.ESTADO_ACTIVO);
-            respuesta.setAudiUsuario(usuarioEjecucion);
-            respuesta.setAudiFechIns(fechaOperacion);
-            respuesta.setAudiIp(ipOperacion);
-            respuesta.setAudiNomTerminal(terminalOperacion);
+            abono.setTipoDocBeneficiarioRespuesta(responseConsultaIndividual.getTipoDocBeneficiario());
+            abono.setDocumentoBeneficiarioRespuesta(responseConsultaIndividual.getDocumentoBeneficiario());
+            abono.setNombreBeneficiarioRespuesta(responseConsultaIndividual.getNombreBeneficiario());
+            abono.setDireccionBeneficiarioRespuesta(responseConsultaIndividual.getDireccionBeneficiario());
+            abono.setTelefonoBeneficiarioRespuesta(responseConsultaIndividual.getTelefonoBeneficiario());
+            abono.setMovilBeneficiarioRespuesta(responseConsultaIndividual.getMovilBeneficiario());
+            abono.setMismoTitularOut(responseConsultaIndividual.getMismoTitularOut());
+            abono.setTransferenciaId(responseConsultaIndividual.getTransferenciaId());
+            abono.setItf(responseConsultaIndividual.getItf());
+            abono.setComisionOrigen(responseConsultaIndividual.getComisionOrigen());
+            abono.setComisionDestino(responseConsultaIndividual.getComisionDestino());
+            abono.setMpe001idl(responseConsultaIndividual.getMpe001idl());
+            abono.setCodRespuestaConsulta(responseConsultaIndividual.getCodRespuesta());
+            abono.setDscRespuestaConsulta(responseConsultaIndividual.getDscRespuesta());
+            abono.setEstadoEjecucionConsulta(responseConsultaIndividual.getEstado());
+            abono.setFechaConsulta(responseConsultaIndividual.getFecha());
+            abono.setHoraConsulta(responseConsultaIndividual.getHora());
 
-            respuestaAbonoSolicitudRepository.save(respuesta);
+            abono.setAudiUsuMod(usuarioEjecucion);
+            abono.setAudiFechaMod(fechaOperacion);
+            abono.setAudiIpMod(ipOperacion);
+            abono.setAudiNomTerminalMod(terminalOperacion);
+
+            abonosSolicitudRepository.save(abono);
         } catch (Exception e) {
             log.error("Error al registrar respuesta consulta Abono Solicitud: {}", e.getMessage());
         }
     }
 
-    private void registrarConfirmacionOperacion(ConfirmaTransGetResponseDto responseConfirmacionindividual,
-                                                String usuarioEjecucion,
-                                                LocalDateTime fechaOperacion,
-                                                String ipOperacion,
-                                                String terminalOperacion){
+    private void actualizarDatosConfirmacion(ConfirmaTransGetResponseDto responseConfirmacionindividual,
+                                             String usuarioEjecucion,
+                                             LocalDateTime fechaOperacion,
+                                             String ipOperacion,
+                                             String terminalOperacion) {
         try {
-            RespuestaAbonoSolicitudEntity respuesta = new RespuestaAbonoSolicitudEntity();
-            respuesta.setMovimientoUid(responseConfirmacionindividual.getMovimientoUid());
-            respuesta.setCodRespuestaTransferencia(responseConfirmacionindividual.getCodRespuesta());
-            respuesta.setDscRespuestaTransferencia(responseConfirmacionindividual.getDscRespuesta());
-            respuesta.setErrorConsulta(responseConfirmacionindividual.getMessage());
-            respuesta.setEstadoEjecucionConsulta(responseConfirmacionindividual.getEstado());
-            respuesta.setFechaConsulta(responseConfirmacionindividual.getFecha());
-            respuesta.setHoraConsulta(responseConfirmacionindividual.getHora());
+            AbonosSolicitudEntity abono = abonosSolicitudRepository.findByIdAndEstadoRegistro(
+                    responseConfirmacionindividual.getIdAbonoSolicitud(),
+                    Constante.ESTADO_ACTIVO);
+            abono.setMovimientoUid(responseConfirmacionindividual.getMovimientoUid());
+            abono.setCodRespuestaTransferencia(responseConfirmacionindividual.getCodRespuesta());
+            abono.setDscRespuestaTransferencia(responseConfirmacionindividual.getDscRespuesta());
+            abono.setEstadoEjecucionTransferencia(responseConfirmacionindividual.getEstado());
+            abono.setFechaTransferencia(responseConfirmacionindividual.getFecha());
+            abono.setHoraTransferencia(responseConfirmacionindividual.getHora());
 
-            respuesta.setAudiUsuMod(usuarioEjecucion);
-            respuesta.setAudiFechaMod(fechaOperacion);
-            respuesta.setAudiIpMod(ipOperacion);
-            respuesta.setAudiNomTerminalMod(terminalOperacion);
+            abono.setAudiUsuMod(usuarioEjecucion);
+            abono.setAudiFechaMod(fechaOperacion);
+            abono.setAudiIpMod(ipOperacion);
+            abono.setAudiNomTerminalMod(terminalOperacion);
 
-            respuestaAbonoSolicitudRepository.save(respuesta);
+            abonosSolicitudRepository.save(abono);
         } catch (Exception e) {
             log.error("Error al registrar respuesta de confirmacion Abono Solicitud: {}", e.getMessage());
         }

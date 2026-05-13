@@ -150,7 +150,7 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
                     responseConsulta.getMessage());
             registrarObservacion(observacion, Constante.TIPO_OBSERVACION_OBSERVADO);
 
-            idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_OBSERVADO, Constante.EVENTO_EJECUTAR);
+            idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_PROCESADO_PARCIAL, Constante.EVENTO_EJECUTAR);
         } else {
             idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_PROCESADO_TOTAL, Constante.EVENTO_EJECUTAR);
         }

@@ -2,18 +2,20 @@ package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.general.service.AbstractService;
 import com.raissa.comun.util.Constante;
+import com.raissapayments.conector.domain.dto.operativo.request.LiquidacionSolicitudRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.SolicitudSearchDto;
-import com.raissapayments.conector.domain.dto.operativo.response.AbonoSolicitudResponseDto;
-import com.raissapayments.conector.domain.dto.operativo.response.CargoSolicitudResponseDto;
+import com.raissapayments.conector.domain.dto.operativo.response.DetalleLiquidacionSolicitud;
+import com.raissapayments.conector.domain.dto.operativo.response.LiquidacionSolicitudResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.SolicitudResponseDto;
+import com.raissapayments.conector.domain.entity.operativo.AbonosSolicitudEntity;
+import com.raissapayments.conector.domain.entity.operativo.CargoSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.GestionAutorizacionSolicitudEntity;
-import com.raissapayments.conector.domain.entity.operativo.RespuestaAbonoSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.SolicitudEntity;
 import com.raissapayments.conector.domain.mapper.operativo.SolicitudMapper;
 import com.raissapayments.conector.domain.repository.operativo.GestionAutorizacionSolicitudRepository;
-import com.raissapayments.conector.domain.repository.operativo.RespuestaAbonoSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.service.operativo.SolicitudService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -25,20 +27,17 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class SolicitudServiceImpl extends AbstractService implements SolicitudService {
     private final SolicitudRepository solicitudRepo;
     private final SolicitudMapper solicitudMapper;
-    private final RespuestaAbonoSolicitudRepository respuestaAbonoSolicitudRepository;
     private final GestionAutorizacionSolicitudRepository gestionAutorizacionSolicitudRepository;
 
     public Page<SolicitudResponseDto> getPageSolicitudes(SolicitudSearchDto filtro) {
@@ -56,6 +55,49 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
                 .toList();
 
         return new PageImpl<>(completarBeneficiariosValidados(dtos), pageable, page.getTotalElements());
+    }
+
+    public LiquidacionSolicitudResponseDto resumenLiquidacionSolicitud(LiquidacionSolicitudRequestDto req) {
+        BigDecimal cargos = BigDecimal.ZERO;
+        BigDecimal totalImpuestos = BigDecimal.ZERO;
+        BigDecimal totalComisionesOrigen = BigDecimal.ZERO;
+        BigDecimal totalComisionesDestino = BigDecimal.ZERO;
+        String moneda = Constante.CODIGO_MONEDA_SOLES_ISO;
+        List<DetalleLiquidacionSolicitud> detalles  = new ArrayList<>();
+
+        SolicitudEntity solicitud = solicitudRepo.findByIdAndEstadoRegistro(req.getSolicitudId(), Constante.ESTADO_ACTIVO);
+
+        if (solicitud == null) {
+            throw new EntityNotFoundException("Solicitud no encontrada: " + req.getSolicitudId());
+        }
+
+        for (CargoSolicitudEntity cargo : solicitud.getCargos()) {
+            cargos = cargos.add(nullSafe(cargo.getMontoCargo()));
+            moneda = cargo.getMoneda();
+            for (AbonosSolicitudEntity abono : cargo.getAbonos()) {
+                if (isTransferenciaExitosa(abono)) {
+                    DetalleLiquidacionSolicitud detalle = crearDetalleLiquidacion(abono);
+                    detalles.add(detalle);
+
+                    totalImpuestos = totalImpuestos.add(nullSafe(abono.getItf()));
+                    totalComisionesOrigen = totalComisionesOrigen.add(nullSafe(abono.getComisionOrigen()));
+                    totalComisionesDestino = totalComisionesDestino.add(nullSafe(abono.getComisionDestino()));
+                }
+            }
+        }
+
+        return LiquidacionSolicitudResponseDto.builder()
+                .idSolicitud(req.getSolicitudId())
+                .totalImpuestos(totalImpuestos)
+                .totalComisionesOrigen(totalComisionesOrigen)
+                .totalComisionesDestino(totalComisionesDestino)
+                .detalle(detalles)
+                .cargo(cargos)
+                .totalComisiones(calcularTotalComisiones(totalComisionesOrigen, totalComisionesDestino))
+                .totalCobros(calcularTotalCobros(totalImpuestos, totalComisionesOrigen, totalComisionesDestino))
+                .totalLiquidacion(calcularTotalLiquidacion(totalImpuestos, totalComisionesOrigen, totalComisionesDestino, cargos))
+                .moneda(moneda)
+                .build();
     }
 
     private Specification<SolicitudEntity> buildSpec(SolicitudSearchDto f) {
@@ -91,57 +133,9 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
             return new ArrayList<>();
         }
 
-        List<Long> idsAbonos = new ArrayList<>();
-        for (SolicitudResponseDto solicitud : list) {
-            if (solicitud.getCargos() != null) {
-                for (CargoSolicitudResponseDto cargo : solicitud.getCargos()) {
-                    if (cargo.getAbonos() != null) {
-                        for (AbonoSolicitudResponseDto abono : cargo.getAbonos()) {
-                            idsAbonos.add(abono.getId());
-                        }
-                    }
-                }
-            }
-        }
-
-        if (idsAbonos.isEmpty()) {
-            return list;
-        }
-
-        List<RespuestaAbonoSolicitudEntity> respuestas = respuestaAbonoSolicitudRepository
-                .findByCodigoAbonoSolicitudInAndEstadoRegistro(idsAbonos, Constante.ESTADO_ACTIVO);
-
-        Map<Long, RespuestaAbonoSolicitudEntity> mapaRespuestas = respuestas.stream()
-                .collect(Collectors.toMap(
-                        RespuestaAbonoSolicitudEntity::getCodigoAbonoSolicitud,
-                        Function.identity(),
-                        (existing, replacement) -> existing
-                ));
-
         for (SolicitudResponseDto solicitud : list) {
             if (solicitud.getCargos() != null) {
                 List<String> usuariosAutorizacion = new ArrayList<>();
-                for (CargoSolicitudResponseDto cargo : solicitud.getCargos()) {
-                    if (cargo.getAbonos() != null) {
-                        for (AbonoSolicitudResponseDto abono : cargo.getAbonos()) {
-                            RespuestaAbonoSolicitudEntity respuesta = mapaRespuestas.get(abono.getId());
-
-                            if (respuesta != null) {
-                                abono.setNdocBeneficiarioValidado(
-                                        respuesta.getDocumentoBeneficiario() != null ?
-                                                respuesta.getDocumentoBeneficiario() : ""
-                                );
-                                abono.setNombreBeneficiarioValidado(
-                                        respuesta.getNombreBeneficiario() != null ?
-                                                respuesta.getNombreBeneficiario() : ""
-                                );
-                            } else {
-                                abono.setNdocBeneficiarioValidado("");
-                                abono.setNombreBeneficiarioValidado("");
-                            }
-                        }
-                    }
-                }
 
                 List<GestionAutorizacionSolicitudEntity> listGestion =
                         gestionAutorizacionSolicitudRepository.findByCodigoSolicitudAndEstadoProcesamientoAndEstadoRegistro(solicitud.getId(),
@@ -157,5 +151,38 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
         }
 
         return list;
+    }
+
+    private boolean isTransferenciaExitosa(AbonosSolicitudEntity abono) {
+        return abono != null &&
+                Constante.ESTADO_ALFIN_OK.equals(abono.getEstadoEjecucionTransferencia());
+    }
+
+    private BigDecimal nullSafe(BigDecimal value) {
+        return value != null ? value : BigDecimal.ZERO;
+    }
+
+    private DetalleLiquidacionSolicitud crearDetalleLiquidacion(AbonosSolicitudEntity abono) {
+        return DetalleLiquidacionSolicitud.builder()
+                .itf(nullSafe(abono.getItf()))
+                .cciDestino(abono.getCuentaDestino())
+                .cliente(abono.getNombreBeneficiarioRespuesta())
+                .moneda(abono.getMoneda())
+                .monto(abono.getMontoDestino())
+                .comisionOrigen(nullSafe(abono.getComisionOrigen()))
+                .comisionDestino(nullSafe(abono.getComisionDestino()))
+                .build();
+    }
+
+    private BigDecimal calcularTotalCobros(BigDecimal impuestos, BigDecimal comisionesOrigen, BigDecimal comisionesDestino) {
+        return impuestos.add(comisionesOrigen).add(comisionesDestino);
+    }
+
+    private BigDecimal calcularTotalLiquidacion(BigDecimal impuestos, BigDecimal comisionesOrigen, BigDecimal comisionesDestino, BigDecimal cargo) {
+        return cargo.add(impuestos).add(comisionesOrigen).add(comisionesDestino);
+    }
+
+    private BigDecimal calcularTotalComisiones(BigDecimal comisionesOrigen, BigDecimal comisionesDestino) {
+        return comisionesOrigen.add(comisionesDestino);
     }
 }

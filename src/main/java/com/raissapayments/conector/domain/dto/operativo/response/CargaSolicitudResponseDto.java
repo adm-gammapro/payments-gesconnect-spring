@@ -1,14 +1,26 @@
 package com.raissapayments.conector.domain.dto.operativo.response;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
-@Data
-@AllArgsConstructor
+import java.util.List;
+
+@Getter
+@Setter
 public class CargaSolicitudResponseDto {
-    Long solicitudId;
-    int cargosCreados;
-    int abonosCreados;
-    int observacionesRegistradas;
-    String estadoSolicitud;
+    private List<Long> idsSolicitudes;
+    private int totalCargos;
+    private int totalAbonos;
+    private int totalObservaciones;
+
+    // Constructor actualizado
+    public CargaSolicitudResponseDto(List<Long> idsSolicitudes,
+                                     int totalCargos,
+                                     int totalAbonos,
+                                     int totalObservaciones) {
+        this.idsSolicitudes = idsSolicitudes;
+        this.totalCargos = totalCargos;
+        this.totalAbonos = totalAbonos;
+        this.totalObservaciones = totalObservaciones;
+    }
 }

@@ -1,8 +1,10 @@
 package com.raissapayments.conector.rest.operativo;
 
 import com.raissapayments.conector.domain.dto.operativo.request.CambioEstadoRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.LiquidacionSolicitudRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ObservacionCambioEstadoRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.SolicitudSearchDto;
+import com.raissapayments.conector.domain.dto.operativo.response.LiquidacionSolicitudResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.SolicitudResponseDto;
 import com.raissapayments.conector.service.operativo.SolicitudFlujoService;
 import com.raissapayments.conector.service.operativo.SolicitudService;
@@ -104,8 +106,24 @@ public class SolicitudRest {
         return ResponseEntity.ok(flujoService.anular(req));
     }
 
+    /**
+     * Devuelve lista paginada de solicitudes segun filtros
+     * @param solicitudSearch filtros de busqueda
+     * @return {@link Page<SolicitudResponseDto>}
+     */
     @PostMapping("/list-page-solicitud")
     public ResponseEntity<Page<SolicitudResponseDto>> listarCuentasPage(@RequestBody(required = false) SolicitudSearchDto solicitudSearch) {
         return ResponseEntity.ok(solicitudService.getPageSolicitudes(solicitudSearch));
+    }
+
+    /**
+     * Devuelve una lista de las comisiones cobradas a una solicitud
+     *
+     * @param req datos de la solicitud, auditoría y observación
+     * @return {@link Long}
+     */
+    @PostMapping("/resumen-liquidacion")
+    public ResponseEntity<LiquidacionSolicitudResponseDto> resumenLiquidacion(@Valid @RequestBody LiquidacionSolicitudRequestDto req) {
+        return ResponseEntity.ok(solicitudService.resumenLiquidacionSolicitud(req));
     }
 }

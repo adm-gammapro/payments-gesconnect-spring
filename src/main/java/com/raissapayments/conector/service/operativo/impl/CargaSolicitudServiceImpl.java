@@ -19,6 +19,7 @@ import com.raissapayments.conector.domain.repository.operativo.ObservacionReposi
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.service.operativo.CargaSolicitudService;
 import com.raissapayments.conector.service.operativo.TrackingService;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,48 +49,45 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
         EstadoSolicitudEntity estadoRegistrado = estadoSolicitudRepo.findById(Constante.ESTADO_SOLICITUD_REGISTRADO)
                 .orElseThrow(() -> new IllegalStateException("Estado solicitud no registrado"));
 
-        SolicitudEntity solicitud = new SolicitudEntity();
-        solicitud.setFechaCarga(LocalDateTime.now());
-        solicitud.setUsuarioCarga(req.getUsuarioCarga());
-        solicitud.setEstadoSolicitud(estadoRegistrado);
-
-        ParseResult parseResult = parseLineas(req.getLineas(),
-                req.getUsuarioAuditoria(), req.getTerminalAuditoria(), req.getIpAuditoria());
-
-        solicitud.setCantidadOrdenes(parseResult.cargos.size());
-        solicitud.setEstadoRegistro(EstadoRegistroEnum.VIGENTE.getValor());
-        solicitud.setAudiUsuario(req.getUsuarioAuditoria());
-        solicitud.setAudiFechIns(req.getFechaAuditoria());
-        solicitud.setAudiNomTerminal(req.getTerminalAuditoria());
-        solicitud.setAudiIp(req.getIpAuditoria());
-        SolicitudEntity finalSolicitud = solicitudRepo.save(solicitud);
-
-        persistirResultados(finalSolicitud,
-                            parseResult);
-
-        String evento = "";
-        if(req.getTipoCarga().equals(Constante.CARGA_EXCEL)){
-            evento = "REGISTRADO_EXCEL";
-        } else {
-            evento = "REGISTRADO_JSON";
+        if (req.getLineas() == null || req.getLineas().isEmpty()) {
+            throw new IllegalArgumentException("No hay líneas para procesar");
         }
 
-        trackingService.crear(
-                finalSolicitud.getId(),
-                evento,
-                req.getUsuarioCarga(),
-                LocalDateTime.now(),
-                req.getUsuarioAuditoria(),
-                req.getTerminalAuditoria(),
-                req.getIpAuditoria()
-        );
+        List<GrupoSolicitud> grupos = agruparPorSolicitud(req.getLineas(),
+                req.getUsuarioAuditoria(), req.getTerminalAuditoria(), req.getIpAuditoria());
 
+        if (grupos.isEmpty()) {
+            throw new IllegalArgumentException("No se encontraron grupos válidos con cabeceras H");
+        }
+
+        int totalCargos = 0;
+        int totalAbonos = 0;
+        int totalObservaciones = 0;
+        List<Long> idsSolicitudes = new ArrayList<>();
+
+        // Procesar cada grupo como una solicitud independiente
+        for (GrupoSolicitud grupo : grupos) {
+            SolicitudEntity solicitud = crearSolicitud(req, estadoRegistrado, grupo);
+            SolicitudEntity solicitudGuardada = solicitudRepo.save(solicitud);
+            idsSolicitudes.add(solicitudGuardada.getId());
+
+            // Persistir cargos, abonos y observaciones de este grupo
+            persistirResultados(solicitudGuardada, grupo.getParseResult());
+
+            totalCargos += grupo.getParseResult().cargos.size();
+            totalAbonos += grupo.getParseResult().abonos.size();
+            totalObservaciones += grupo.getParseResult().observaciones.size();
+
+            // Crear tracking para cada solicitud
+            crearTracking(solicitudGuardada, req);
+        }
+
+        // Retornar resumen (puedes ajustar según necesites)
         return new CargaSolicitudResponseDto(
-                finalSolicitud.getId(),
-                parseResult.cargos.size(),
-                parseResult.abonos.size(),
-                parseResult.observaciones.size(),
-                estadoRegistrado.getCodigo()
+                idsSolicitudes, // Podrías retornar la primera o todas
+                totalCargos,
+                totalAbonos,
+                totalObservaciones
         );
     }
 
@@ -163,10 +161,6 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
                                     String usuarioAuditoria,
                                     String terminalAuditoria,
                                     String ipAuditoria) {
-        if (lineas == null || lineas.isEmpty()) {
-            throw new IllegalArgumentException("No hay líneas para procesar");
-        }
-
         List<CargoSolicitudEntity> cargos = new ArrayList<>();
         List<AbonosSolicitudEntity> abonos = new ArrayList<>();
         List<ObservacionEntity> observaciones = new ArrayList<>();
@@ -182,6 +176,8 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
             String codEnt = safe(l.getCodigoEntidadFinanciera());
             String moneda = safe(l.getMoneda());
             BigDecimal monto = safe(l.getMonto());
+            String tipoDocBeneficiario = safe(l.getTipoDocBeneficiario());
+            String nroDocBeneficiario = safe(l.getNroDocBeneficiario());
             String beneficiario = safe(l.getBeneficiario());
             String mismoTitular = safe(l.getMismoTitular());
 
@@ -223,10 +219,10 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
                 ab.setCodigoEntidadFinanciera(codEnt);
                 ab.setMoneda(moneda);
                 ab.setMontoDestino(monto != null ? monto.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+                ab.setTipoDocBeneficiario(tipoDocBeneficiario);
+                ab.setNroDocBeneficiario(nroDocBeneficiario);
                 ab.setBeneficiario(beneficiario);
                 ab.setMismotitular(mismoTitular);
-                ab.setEstadoEjecucion(Constante.ESTADO_EJECUCION_PENDIENTE);
-                ab.setDetalleEjecucion("");
                 ab.setEstadoRegistro(EstadoRegistroEnum.VIGENTE.getValor());
                 ab.setAudiFechIns(LocalDateTime.now());
                 ab.setAudiUsuario(usuarioAuditoria);
@@ -275,5 +271,101 @@ public class CargaSolicitudServiceImpl implements CargaSolicitudService {
 
     private BigDecimal safe(BigDecimal v) {
         return v != null ? v : BigDecimal.ZERO;
+    }
+
+    @Getter
+    private static class GrupoSolicitud {
+        private final ParseResult parseResult;
+
+        public GrupoSolicitud(ParseResult parseResult) {
+            this.parseResult = parseResult;
+        }
+
+    }
+
+    private List<GrupoSolicitud> agruparPorSolicitud(List<LineaCargaRequestDto> lineas,
+                                                     String usuarioAuditoria,
+                                                     String terminalAuditoria,
+                                                     String ipAuditoria) {
+        List<GrupoSolicitud> grupos = new ArrayList<>();
+        List<LineaCargaRequestDto> lineasGrupoActual = new ArrayList<>();
+        boolean hayAlMenosUnH = false;
+
+        for (LineaCargaRequestDto linea : lineas) {
+            lineasGrupoActual.add(linea);
+
+            // Si encontramos un H y no es el primero del grupo, cerramos el grupo anterior
+            if ("H".equalsIgnoreCase(safe(linea.getTipo())) && lineasGrupoActual.size() > 1) {
+                // El último elemento es el nuevo H, los anteriores forman un grupo
+                List<LineaCargaRequestDto> grupoCompleto = new ArrayList<>(lineasGrupoActual);
+                grupoCompleto.remove(grupoCompleto.size() - 1); // Quitar el nuevo H
+
+                if (!grupoCompleto.isEmpty()) {
+                    ParseResult parseResult = parseLineas(grupoCompleto, usuarioAuditoria,
+                            terminalAuditoria, ipAuditoria);
+                    if (!parseResult.cargos.isEmpty()) {
+                        grupos.add(new GrupoSolicitud(parseResult));
+                        hayAlMenosUnH = true;
+                    }
+                }
+
+                // Iniciar nuevo grupo con el H actual
+                lineasGrupoActual = new ArrayList<>();
+                lineasGrupoActual.add(linea);
+            }
+        }
+
+        // Procesar el último grupo
+        if (!lineasGrupoActual.isEmpty()) {
+            ParseResult parseResult = parseLineas(lineasGrupoActual, usuarioAuditoria,
+                    terminalAuditoria, ipAuditoria);
+            if (!parseResult.cargos.isEmpty()) {
+                grupos.add(new GrupoSolicitud(parseResult));
+                hayAlMenosUnH = true;
+            }
+        }
+
+        if (!hayAlMenosUnH) {
+            throw new IllegalArgumentException("Debe existir al menos una línea H");
+        }
+
+        return grupos;
+    }
+
+    private SolicitudEntity crearSolicitud(CargaSolicitudJsonRequestDto req,
+                                           EstadoSolicitudEntity estadoRegistrado,
+                                           GrupoSolicitud grupo) {
+        SolicitudEntity solicitud = new SolicitudEntity();
+        solicitud.setFechaCarga(LocalDateTime.now());
+        solicitud.setUsuarioCarga(req.getUsuarioCarga());
+        solicitud.setEstadoSolicitud(estadoRegistrado);
+
+        solicitud.setCantidadOrdenes(grupo.getParseResult().cargos.size());
+        solicitud.setEstadoRegistro(EstadoRegistroEnum.VIGENTE.getValor());
+        solicitud.setAudiUsuario(req.getUsuarioAuditoria());
+        solicitud.setAudiFechIns(req.getFechaAuditoria());
+        solicitud.setAudiNomTerminal(req.getTerminalAuditoria());
+        solicitud.setAudiIp(req.getIpAuditoria());
+
+        return solicitud;
+    }
+
+    private void crearTracking(SolicitudEntity solicitud, CargaSolicitudJsonRequestDto req) {
+        String evento = "";
+        if(req.getTipoCarga().equals(Constante.CARGA_EXCEL)){
+            evento = "REGISTRADO_EXCEL";
+        } else {
+            evento = "REGISTRADO_JSON";
+        }
+
+        trackingService.crear(
+                solicitud.getId(),
+                evento,
+                req.getUsuarioCarga(),
+                LocalDateTime.now(),
+                req.getUsuarioAuditoria(),
+                req.getTerminalAuditoria(),
+                req.getIpAuditoria()
+        );
     }
 }

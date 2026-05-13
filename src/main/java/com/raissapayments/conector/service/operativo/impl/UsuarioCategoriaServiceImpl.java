@@ -4,10 +4,8 @@ import com.raissa.comun.util.Constante;
 import com.raissapayments.conector.domain.dto.operativo.request.UsuarioCategoriaDeleteRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.UsuarioCategoriaRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.response.UsuarioCategoriaResponseDto;
-import com.raissapayments.conector.domain.entity.administrativo.CategoriaEntity;
 import com.raissapayments.conector.domain.entity.operativo.UsuarioCategoriaEntity;
 import com.raissapayments.conector.domain.mapper.operativo.UsuarioCategoriaMapper;
-import com.raissapayments.conector.domain.repository.administrativo.CategoriaRepository;
 import com.raissapayments.conector.domain.repository.operativo.UsuarioCategoriaRepository;
 import com.raissapayments.conector.service.operativo.UsuarioCategoriaService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +19,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UsuarioCategoriaServiceImpl implements UsuarioCategoriaService {
     private final UsuarioCategoriaRepository usuarioCategoriaRepository;
-    private final CategoriaRepository categoriaRepository; // asumiendo que existe
     private final UsuarioCategoriaMapper mapper;
 
     @Override

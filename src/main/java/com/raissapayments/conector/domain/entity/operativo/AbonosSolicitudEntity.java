@@ -49,15 +49,85 @@ public class AbonosSolicitudEntity extends Auditoria {
     @Column(name = "monto_destino", nullable = false)
     private BigDecimal montoDestino;
 
+    @Column(name = "tipo_doc_beneficiario", length = 10)
+    private String tipoDocBeneficiario;
+
+    @Column(name = "nro_doc_beneficiario", length = 50)
+    private String nroDocBeneficiario;
+
     @Column(name = "beneficiario", length = 500)
     private String beneficiario;
 
     @Column(name = "mismo_titular", length = 1)
     private String mismotitular;
 
-    @Column(name = "estado_ejecucion", length = 1, nullable = false)
-    private String estadoEjecucion;
+    // Nuevos campos desde respuesta_abonos_solicitud
+    @Column(name = "transferencia_id", length = 100)
+    private String transferenciaId;
 
-    @Column(name = "detalle_ejecucion", length = 1000, nullable = false)
-    private String detalleEjecucion;
+    @Column(name = "itf", precision = 10, scale = 2)
+    private BigDecimal itf;
+
+    @Column(name = "comision_origen", precision = 10, scale = 2)
+    private BigDecimal comisionOrigen;
+
+    @Column(name = "comision_destino", precision = 10, scale = 2)
+    private BigDecimal comisionDestino;
+
+    @Column(name = "mpe001idl", length = 100)
+    private String mpe001idl;
+
+    @Column(name = "movimiento_uid", length = 100)
+    private String movimientoUid;
+
+    @Column(name = "cod_respuesta_consulta", length = 20)
+    private String codRespuestaConsulta;
+
+    @Column(name = "dsc_respuesta_consulta", length = 2000)
+    private String dscRespuestaConsulta;
+
+    @Column(name = "cod_respuesta_transferencia", length = 20)
+    private String codRespuestaTransferencia;
+
+    @Column(name = "dsc_respuesta_transferencia", length = 2000)
+    private String dscRespuestaTransferencia;
+
+    @Column(name = "estado_ejecucion_consulta", length = 20)
+    private String estadoEjecucionConsulta;
+
+    @Column(name = "estado_ejecucion_transferencia", length = 20)
+    private String estadoEjecucionTransferencia;
+
+    @Column(name = "fecha_consulta", length = 20)
+    private String fechaConsulta;
+
+    @Column(name = "fecha_transferencia", length = 20)
+    private String fechaTransferencia;
+
+    @Column(name = "hora_consulta", length = 20)
+    private String horaConsulta;
+
+    @Column(name = "hora_transferencia", length = 20)
+    private String horaTransferencia;
+
+    @Column(name = "tipo_doc_beneficiario_respuesta")
+    private Integer tipoDocBeneficiarioRespuesta;
+
+    @Column(name = "documento_beneficiario_respuesta", length = 20)
+    private String documentoBeneficiarioRespuesta;
+
+    @Column(name = "nombre_beneficiario_respuesta", length = 500)
+    private String nombreBeneficiarioRespuesta;
+
+    @Column(name = "direccion_beneficiario_respuesta", length = 500)
+    private String direccionBeneficiarioRespuesta;
+
+    @Column(name = "telefono_beneficiario_respuesta", length = 20)
+    private String telefonoBeneficiarioRespuesta;
+
+    @Column(name = "movil_beneficiario_respuesta", length = 20)
+    private String movilBeneficiarioRespuesta;
+
+    @Column(name = "mismo_titular_out", length = 1)
+    private String mismoTitularOut;
 }

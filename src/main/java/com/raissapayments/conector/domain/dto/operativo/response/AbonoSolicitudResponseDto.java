@@ -14,10 +14,33 @@ public class AbonoSolicitudResponseDto {
     private String moneda;
     private BigDecimal montoDestino;
     private String beneficiario;
-    private String ndocBeneficiarioValidado;
-    private String nombreBeneficiarioValidado;
-    private String estadoEjecucion;
-    private String detalleEjecucion;
+    private String tipoDocBeneficiario;
+    private String nroDocBeneficiario;
+    private String mismotitular;
+    private String transferenciaId;
+
+    private BigDecimal itf;
+    private BigDecimal comisionOrigen;
+    private BigDecimal comisionDestino;
+    private String mpe001idl;
+    private String movimientoUid;
+    private String codRespuestaConsulta;
+    private String dscRespuestaConsulta;
+    private String codRespuestaTransferencia;
+    private String dscRespuestaTransferencia;
+    private String estadoEjecucionConsulta;
+    private String estadoEjecucionTransferencia;
+    private String fechaConsulta;
+    private String fechaTransferencia;
+    private String horaConsulta;
+    private String horaTransferencia;
+    private Integer tipoDocBeneficiarioRespuesta;
+    private String documentoBeneficiarioRespuesta;
+    private String nombreBeneficiarioRespuesta;
+    private String direccionBeneficiarioRespuesta;
+    private String telefonoBeneficiarioRespuesta;
+    private String movilBeneficiarioRespuesta;
+    private String mismoTitularOut;
 
     private EstadoRegistroEnum estadoRegistro;
     private String audiFechIns;
