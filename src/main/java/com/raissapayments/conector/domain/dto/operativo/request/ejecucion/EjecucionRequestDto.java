@@ -11,8 +11,10 @@ import java.util.List;
 @Setter
 public class EjecucionRequestDto {
     private Long idSolicitud;
+    private Long codigoCliente;
     private String apiKey;
     private List<InstitucionFinancieraDto> listInstituciones;
+    private Long idCabeceraEjecucion;
 
     private LocalDateTime fechaAuditoria;
     private String usuarioAuditoria;

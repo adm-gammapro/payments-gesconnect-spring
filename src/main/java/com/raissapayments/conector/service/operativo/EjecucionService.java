@@ -4,7 +4,7 @@ import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.Ejecuc
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.EjecucionResponseDto;
 
 public interface EjecucionService {
-    EjecucionResponseDto consultarTransferenciaInmediata(EjecucionRequestDto request);
+    EjecucionResponseDto consultarTransferenciaInmediata(EjecucionRequestDto request) throws Exception;
 
-    EjecucionResponseDto confirmarTransferenciaInmediata(EjecucionRequestDto request);
+    EjecucionResponseDto confirmarTransferenciaInmediata(EjecucionRequestDto request) throws Exception;
 }

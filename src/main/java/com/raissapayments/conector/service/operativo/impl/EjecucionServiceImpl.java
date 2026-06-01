@@ -2,10 +2,14 @@ package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.general.dto.ResponseDTO;
 import com.raissa.comun.util.Constante;
+import com.raissa.comun.util.ConstanteError;
+import com.raissapayments.conector.config.encrypted.AESUtil;
 import com.raissapayments.conector.domain.dto.commons.InstitucionFinancieraDto;
 import com.raissapayments.conector.domain.dto.operativo.request.LoginAlfinRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.CabeceraEjecucionRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.ConfirmaTransRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.ConsultaTransRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.DetalleEjecucionRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.EjecucionRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.GroupConfirmaCredencialesDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.GroupConfirmaTransBffRequestDto;
@@ -14,6 +18,7 @@ import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.GroupC
 import com.raissapayments.conector.domain.dto.operativo.response.AccountsResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.LoginResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.SaldoResponseDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.CabeceraEjecucionResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.ConfirmaTransGetResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.ConsultaTransGetResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.EjecucionResponseDto;
@@ -28,7 +33,10 @@ import com.raissapayments.conector.domain.repository.operativo.CargoSolicitudRep
 import com.raissapayments.conector.domain.repository.operativo.CuentaOrdenanteRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.exception.operativo.ConnectionException;
+import com.raissapayments.conector.exception.operativo.ErrorControladoException;
 import com.raissapayments.conector.service.operativo.ApiService;
+import com.raissapayments.conector.service.operativo.CabeceraEjecucionService;
+import com.raissapayments.conector.service.operativo.DetalleEjecucionService;
 import com.raissapayments.conector.service.operativo.EjecucionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,10 +64,14 @@ public class EjecucionServiceImpl implements EjecucionService {
     private final CargoSolicitudRepository cargoSolicitudRepository;
     private final AbonosSolicitudRepository abonosSolicitudRepository;
     private final CuentaOrdenanteRepository cuentaOrdenanteRepository;
-
+    private final CabeceraEjecucionService cabeceraEjecucionService;
+    private final DetalleEjecucionService detalleEjecucionService;
     private final ApiService apiService;
 
-    public EjecucionResponseDto consultarTransferenciaInmediata(EjecucionRequestDto request) {
+    //Utilitarios
+    private final AESUtil aesUtil;
+
+    public EjecucionResponseDto consultarTransferenciaInmediata(EjecucionRequestDto request) throws Exception {
         List<ConsultaTransRequestDto> listConsulta;
         EjecucionResponseDto responseDto = new EjecucionResponseDto();
 
@@ -101,7 +113,7 @@ public class EjecucionServiceImpl implements EjecucionService {
                 consulta.setIdSolicitud(request.getIdSolicitud());
                 consulta.setIdCargoSolicitud(cargo.getId());
                 consulta.setIdAbonoSolicitud(abono.getId());
-                consulta.setClienteBaaS(cuentaOpt.getUsuarioOrdenante());
+                consulta.setClienteBaaS(aesUtil.decrypt(cuentaOpt.getUsuarioOrdenante()));
                 consulta.setCuentaBaaS(cargo.getCuentaOrigen());
 
                 String moneda;
@@ -149,8 +161,8 @@ public class EjecucionServiceImpl implements EjecucionService {
 
             LoginAlfinRequestDto loginDto = new LoginAlfinRequestDto();
             loginDto.setApiKey(apiKey);
-            loginDto.setUsername(cuentaOpt.getUsuarioOrdenante());
-            loginDto.setPassword(cuentaOpt.getPasswordOrdenante());
+            loginDto.setUsername(aesUtil.decrypt(cuentaOpt.getUsuarioOrdenante()));
+            loginDto.setPassword(aesUtil.decrypt(cuentaOpt.getPasswordOrdenante()));
             loginDto.setProvider("alfin_api");
             loginDto.setCompany_code("");
             loginDto.setIndicadorValorAdicional(false);
@@ -165,15 +177,22 @@ public class EjecucionServiceImpl implements EjecucionService {
                 apiKey,
                 request.getUsuarioAuditoria(),
                 request.getFechaAuditoria(),
+                request.getIdCabeceraEjecucion(),
                 request.getIpAuditoria(),
                 request.getTerminalAuditoria());
 
         return responseDto;
     }
 
-    public EjecucionResponseDto confirmarTransferenciaInmediata(EjecucionRequestDto request) {
+    public EjecucionResponseDto confirmarTransferenciaInmediata(EjecucionRequestDto request) throws Exception {
+        int registrosTotales;
+        int registrosProcesados = 0;
+        int registrosPendientes;
+        int registrosErroneos = 0;
         List<ConfirmaTransRequestDto> listConfirmaciones = new ArrayList<>();
         EjecucionResponseDto responseDto = new EjecucionResponseDto();
+        CabeceraEjecucionRequestDto cabeceraEjecucion = new CabeceraEjecucionRequestDto();
+        CabeceraEjecucionResponseDto responseCabeceraEjecucion = new CabeceraEjecucionResponseDto();
 
         Optional<SolicitudEntity> opt = solicitudRepository.findById(request.getIdSolicitud());
         if (opt.isEmpty()) {
@@ -197,7 +216,25 @@ public class EjecucionServiceImpl implements EjecucionService {
 
         for (CargoSolicitudEntity cargo : listCargo) {
             GroupConfirmaCredencialesDto iteraccion = new GroupConfirmaCredencialesDto();
+            registrosTotales = cargo.getAbonos().size();
+            registrosPendientes = cargo.getAbonos().size();
 
+            cabeceraEjecucion.setCodigoJob(request.getIdSolicitud());
+            cabeceraEjecucion.setCodigoCliente(request.getCodigoCliente());
+            cabeceraEjecucion.setCodigoSistema(Constante.SISTEMA_PAYMENTS);
+            cabeceraEjecucion.setFechaInicioProceso(LocalDateTime.now());
+            cabeceraEjecucion.setRegistrosTotales(registrosTotales);
+            cabeceraEjecucion.setRegistrosProcesados(registrosProcesados);
+            cabeceraEjecucion.setRegistrosPendientes(registrosPendientes);
+            cabeceraEjecucion.setRegistrosErroneos(registrosErroneos);
+            cabeceraEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_PROCESANDO);
+            cabeceraEjecucion.setProceso(Constante.PROCESO_CONFIRMACION);
+            cabeceraEjecucion.setDetalleEjecucion("Iniciando confirmación");
+            cabeceraEjecucion.setFechaAuditoria(LocalDateTime.now());
+            cabeceraEjecucion.setUsuarioAuditoria(request.getUsuarioAuditoria());
+            cabeceraEjecucion.setIpAuditoria(request.getIpAuditoria());
+            cabeceraEjecucion.setTerminalAuditoria(request.getTerminalAuditoria());
+            responseCabeceraEjecucion = cabeceraEjecucionService.registrar(cabeceraEjecucion);
 
             CuentaOrdenanteEntity cuentaOpt = cuentaOrdenanteRepository.findByNumeroCuentaOrdenanteAndEstadoRegistro(
                     cargo.getCuentaOrigen(),
@@ -214,7 +251,7 @@ public class EjecucionServiceImpl implements EjecucionService {
                 confirmacion.setIdSolicitud(request.getIdSolicitud());
                 confirmacion.setIdCargoSolicitud(cargo.getId());
                 confirmacion.setIdAbonoSolicitud(abono.getId());
-                confirmacion.setClienteBaaS(cuentaOpt.getUsuarioOrdenante());
+                confirmacion.setClienteBaaS(aesUtil.decrypt(cuentaOpt.getUsuarioOrdenante()));
                 confirmacion.setCuentaBaaS(cargo.getCuentaOrigen());
 
                 String moneda;
@@ -237,8 +274,8 @@ public class EjecucionServiceImpl implements EjecucionService {
 
             LoginAlfinRequestDto loginDto = new LoginAlfinRequestDto();
             loginDto.setApiKey(apiKey);
-            loginDto.setUsername(cuentaOpt.getUsuarioOrdenante());
-            loginDto.setPassword(cuentaOpt.getPasswordOrdenante());
+            loginDto.setUsername(aesUtil.decrypt(cuentaOpt.getUsuarioOrdenante()));
+            loginDto.setPassword(aesUtil.decrypt(cuentaOpt.getPasswordOrdenante()));
             loginDto.setProvider("alfin_api");
             loginDto.setCompany_code("");
             loginDto.setIndicadorValorAdicional(false);
@@ -251,6 +288,7 @@ public class EjecucionServiceImpl implements EjecucionService {
                                       apiKey,
                                       request.getUsuarioAuditoria(),
                                       request.getFechaAuditoria(),
+                                      responseCabeceraEjecucion.getId(),
                                       request.getIpAuditoria(),
                                       request.getTerminalAuditoria());
 
@@ -261,14 +299,29 @@ public class EjecucionServiceImpl implements EjecucionService {
                                                 String apiKey,
                                                 String usuarioEjecucion,
                                                 LocalDateTime fechaOperacion,
+                                                Long idCabeceraEjecucion,
                                                 String ipOperacion,
                                                 String terminalOperacion) {
         EjecucionResponseDto ejecucionResponse = new EjecucionResponseDto();
         StringBuilder mensajeFinal = new StringBuilder();
+        CabeceraEjecucionRequestDto cabeceraEjecucionRequest;
+        CabeceraEjecucionResponseDto cabeceraEjecucionResponse = new CabeceraEjecucionResponseDto();
+        int registrosTotales = 0;
+        int registrosProcesados = 0;
+        int registrosPendientes;
+        int registrosErroneos = 0;
 
         try {
+            cabeceraEjecucionResponse = cabeceraEjecucionService.buscarPorId(idCabeceraEjecucion);
+            registrosTotales = cabeceraEjecucionResponse.getRegistrosTotales();
+            registrosProcesados = cabeceraEjecucionResponse.getRegistrosProcesados();
+            registrosErroneos = cabeceraEjecucionResponse.getRegistrosErroneos();
             for (GroupConsultasCredencialesDto iteraccion : iteracciones) {
                 ResponseDTO<?> responseLoginDTO = apiService.login(iteraccion.getLoginAlfin());
+                if(responseLoginDTO.getBody() == null) {
+                    mensajeFinal.append("Ocurrieron problemas de autenticación");
+                    continue;
+                }
 
                 if (responseLoginDTO.getBody().getClass() == LoginResponseDto.class) {
                     LoginResponseDto loginDTOResponse = (LoginResponseDto) responseLoginDTO.getBody();
@@ -281,10 +334,9 @@ public class EjecucionServiceImpl implements EjecucionService {
                             iteraccion.getLoginAlfin().getUsername(),
                             iteraccion.getNumeroCuentaCargo());
 
-                    if (responseSaldoDTO == null) {
+                    if (responseSaldoDTO.getBody() == null) {
                         mensajeFinal.append("No se pudo recuperar saldo de cuenta: ")
-                                .append(iteraccion.getNumeroCuentaCargo())
-                                .append(Constante.SEPARADOR_ERRORES);
+                                .append(iteraccion.getNumeroCuentaCargo());
                         continue;
                     }
                     if (responseSaldoDTO.getBody().getClass() == SaldoResponseDto.class) {
@@ -301,12 +353,20 @@ public class EjecucionServiceImpl implements EjecucionService {
                                 }
                             }
                             if(indicadorErrorSaldo > 0) {
+                                mensajeFinal.append("Cuenta de cargo con saldo insuficiente: ")
+                                        .append(iteraccion.getNumeroCuentaCargo());
                                 continue;
                             }
                         }
                     }
 
                     ResponseDTO<?> responseConsultas = apiService.consultaTranferencia(loginDTOResponse.getKey(), apiKey, consultas);
+
+                    if(responseConsultas.getBody() == null) {
+                        mensajeFinal.append("No hubo respuesta en consulta de transferencias")
+                                .append(iteraccion.getNumeroCuentaCargo());
+                        continue;
+                    }
 
                     if (responseConsultas.getBody().getClass() == GroupConsultaTransResponseDto.class) {
                         GroupConsultaTransResponseDto response = (GroupConsultaTransResponseDto) responseConsultas.getBody();
@@ -318,18 +378,105 @@ public class EjecucionServiceImpl implements EjecucionService {
                                     ));
 
                             for (ConsultaTransGetResponseDto responseConsultaindividual : response.getListRespuestaConsultaTransferencia()) {
-                                if (responseConsultaindividual.getStatus().equals(Constante.KEY_ERROR_CODE)) {
-                                    ConsultaTransRequestDto request = mapaConsulta.get(responseConsultaindividual.getIdAbonoSolicitud());
-                                    if (request != null) {
-                                        String mensaje = String.format(
-                                                "Observacion en la operacion de la cuenta %s con importe %s: %s",
-                                                request.getCciBeneficiario(),
-                                                request.getImporte(),
-                                                responseConsultaindividual.getDscRespuesta()
-                                        );
+                                ConsultaTransRequestDto request = mapaConsulta.get(responseConsultaindividual.getIdAbonoSolicitud());
 
-                                        mensajeFinal.append(mensaje).append(Constante.SEPARADOR_ERRORES);
+                                Optional<AbonosSolicitudEntity> abonoOpt = abonosSolicitudRepository.findById(request.getIdAbonoSolicitud());
+                                String moneda;
+                                String descripcionMoneda;
+                                String codigoEntidadFinanciera;
+
+                                if (abonoOpt.isPresent()) {
+                                    AbonosSolicitudEntity abono = abonoOpt.get();
+                                    moneda = abono.getMoneda();
+                                    descripcionMoneda = "PEN".equals(moneda) ? "Soles" : "Dólares";
+                                    codigoEntidadFinanciera = abono.getCodigoEntidadFinanciera();
+                                } else {
+                                    throw new ErrorControladoException("Abono no encontrado con ID: " + request.getIdAbonoSolicitud());
+                                }
+
+                                if (responseConsultaindividual.getStatus().equals(Constante.KEY_SUCCESS_CODE)) {
+                                    registrosProcesados++;
+                                    registrosPendientes = registrosTotales - (registrosErroneos + registrosProcesados);
+
+                                    cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                                    cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                                    cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                                    cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                                    cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                                    cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                                    cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_PROCESANDO);
+                                    cabeceraEjecucionRequest.setProceso(Constante.PROCESO_VALIDACION);
+                                    cabeceraEjecucionRequest.setDetalleEjecucion(ConstanteError.MENSAJE_PROCESANDO);
+                                    cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                                    cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                                    cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                                    cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                                    cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
+                                    DetalleEjecucionRequestDto detalleEjecucion = new DetalleEjecucionRequestDto();
+                                    detalleEjecucion.setCodigoCabeceraEjecucion(cabeceraEjecucionResponse.getId());
+                                    detalleEjecucion.setNumeroCuenta(request.getCciBeneficiario());
+                                    detalleEjecucion.setMonedaCuenta(moneda);
+                                    detalleEjecucion.setDescripcionMoneda(descripcionMoneda);
+                                    detalleEjecucion.setCodigoEntidadFinanciera(codigoEntidadFinanciera);
+                                    detalleEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_DET_PROCESADO);
+                                    detalleEjecucion.setDetalleEjecucion(ConstanteError.MENSAJE_VALIDACION_EXITOSA);
+                                    detalleEjecucion.setFechaAuditoria(LocalDateTime.now());
+                                    detalleEjecucion.setUsuarioAuditoria(usuarioEjecucion);
+                                    detalleEjecucion.setIpAuditoria(ipOperacion);
+                                    detalleEjecucion.setTerminalAuditoria(terminalOperacion);
+                                    detalleEjecucionService.registrar(detalleEjecucion);
+                                } else {
+                                    String mensaje = String.format(
+                                            "Observacion en la operacion de la cuenta %s con importe %s: %s",
+                                            request.getCciBeneficiario(),
+                                            request.getImporte(),
+                                            responseConsultaindividual.getDscRespuesta()
+                                    );
+
+                                    mensajeFinal.append(mensaje).append(Constante.SEPARADOR_ERRORES);
+
+                                    registrosErroneos++;
+                                    registrosPendientes = registrosTotales - (registrosErroneos + registrosProcesados);
+
+                                    cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                                    cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                                    cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                                    cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                                    cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                                    cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                                    cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_PROCESANDO);
+                                    cabeceraEjecucionRequest.setProceso(Constante.PROCESO_VALIDACION);
+                                    cabeceraEjecucionRequest.setDetalleEjecucion(ConstanteError.MENSAJE_PROCESANDO);
+                                    cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                                    cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                                    cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                                    cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                                    cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
+                                    DetalleEjecucionRequestDto detalleEjecucion = new DetalleEjecucionRequestDto();
+                                    detalleEjecucion.setCodigoCabeceraEjecucion(cabeceraEjecucionResponse.getId());
+                                    detalleEjecucion.setNumeroCuenta(request.getCciBeneficiario());
+                                    detalleEjecucion.setMonedaCuenta(moneda);
+                                    detalleEjecucion.setDescripcionMoneda(descripcionMoneda);
+                                    detalleEjecucion.setCodigoEntidadFinanciera(codigoEntidadFinanciera);
+                                    detalleEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_DET_ERRONEO);
+                                    String truncado;
+                                    if(responseConsultaindividual.getEstado().equals(Constante.ESTADO_ALFIN_CONF_ERROR)){
+                                        truncado = "Error de configuración para acceso a la cuenta de cargo";
+                                    } else if(responseConsultaindividual.getEstado().equals(Constante.ESTADO_ALFIN_SEG_ERROR)){
+                                        truncado = "Error de seguridad";
+                                    } else if(responseConsultaindividual.getEstado().equals(Constante.ESTADO_ALFIN_PLAT_ERROR)){
+                                        truncado = "Error en la plataforma del banco";
+                                    } else {
+                                        truncado = mensaje.length() > 2000 ? mensaje.substring(0, 2000) : mensaje;
                                     }
+                                    detalleEjecucion.setDetalleEjecucion(truncado);
+                                    detalleEjecucion.setFechaAuditoria(LocalDateTime.now());
+                                    detalleEjecucion.setUsuarioAuditoria(usuarioEjecucion);
+                                    detalleEjecucion.setIpAuditoria(ipOperacion);
+                                    detalleEjecucion.setTerminalAuditoria(terminalOperacion);
+                                    detalleEjecucionService.registrar(detalleEjecucion);
 
                                 }
                                 actualizarDatosConsulta(responseConsultaindividual,
@@ -347,14 +494,66 @@ public class EjecucionServiceImpl implements EjecucionService {
                 }
             }
             if (mensajeFinal.isEmpty()) {
+                registrosPendientes = 0;
+
+                cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO);
+                cabeceraEjecucionRequest.setProceso(Constante.PROCESO_VALIDACION);
+                cabeceraEjecucionRequest.setDetalleEjecucion("Validación procesada exitosamente");
+                cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
                 ejecucionResponse.setStatus(Constante.KEY_SUCCESS_CODE);
             } else {
+                registrosPendientes = 0;
+
+                cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO_ERROR);
+                cabeceraEjecucionRequest.setProceso(Constante.PROCESO_VALIDACION);
+                String truncado = mensajeFinal.toString().length() > 2000 ? mensajeFinal.substring(0, 2000) : mensajeFinal.toString();
+                cabeceraEjecucionRequest.setDetalleEjecucion(truncado);
+                cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
                 ejecucionResponse.setStatus(Constante.KEY_ERROR_CODE);
                 ejecucionResponse.setMessage(mensajeFinal.toString());
             }
         } catch (ConnectionException e){
             ejecucionResponse.setStatus(Constante.KEY_NOT_ACTION_CODE);
         } catch (Exception e) {
+            registrosPendientes = 0;
+
+            cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+            cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+            cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+            cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+            cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+            cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+            cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO_ERROR);
+            cabeceraEjecucionRequest.setProceso(Constante.PROCESO_VALIDACION);
+            cabeceraEjecucionRequest.setDetalleEjecucion("Error no controlado al realizar validación de transferencias");
+            cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+            cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+            cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+            cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+            cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
             ejecucionResponse.setStatus(Constante.KEY_ERROR_CODE);
             ejecucionResponse.setMessage("Error no controlado al realizar consulta de transferencias: " + e.getMessage());
         }
@@ -366,14 +565,31 @@ public class EjecucionServiceImpl implements EjecucionService {
                                                  String apiKey,
                                                  String usuarioEjecucion,
                                                  LocalDateTime fechaOperacion,
+                                                 Long idCabeceraEjecucion,
                                                  String ipOperacion,
                                                  String terminalOperacion) {
         EjecucionResponseDto ejecucionResponse = new EjecucionResponseDto();
         StringBuilder mensajeFinal = new StringBuilder();
+        CabeceraEjecucionRequestDto cabeceraEjecucionRequest;
+        CabeceraEjecucionResponseDto cabeceraEjecucionResponse = new CabeceraEjecucionResponseDto();
+        int registrosTotales = 0;
+        int registrosProcesados = 0;
+        int registrosPendientes;
+        int registrosErroneos = 0;
 
         try {
+            cabeceraEjecucionResponse = cabeceraEjecucionService.buscarPorId(idCabeceraEjecucion);
+            registrosTotales = cabeceraEjecucionResponse.getRegistrosTotales();
+            registrosProcesados = cabeceraEjecucionResponse.getRegistrosProcesados();
+            registrosErroneos = cabeceraEjecucionResponse.getRegistrosErroneos();
+
             for (GroupConfirmaCredencialesDto iteraccion : iteracciones) {
                 ResponseDTO<?> responseLoginDTO = apiService.login(iteraccion.getLoginAlfin());
+
+                if(responseLoginDTO.getBody() == null) {
+                    mensajeFinal.append("Problemas de autenticación").append(" | ");
+                    continue;
+                }
 
                 if (responseLoginDTO.getBody().getClass() == LoginResponseDto.class) {
                     LoginResponseDto loginDTOResponse = (LoginResponseDto) responseLoginDTO.getBody();
@@ -381,6 +597,11 @@ public class EjecucionServiceImpl implements EjecucionService {
                     GroupConfirmaTransBffRequestDto confirmacion = new GroupConfirmaTransBffRequestDto();
                     confirmacion.setListConfirmacionTransferencia(iteraccion.getListConfirmaciones());
                     ResponseDTO<?> responseConfirmaciones = apiService.confirmacionTranferencia(loginDTOResponse.getKey(), apiKey, confirmacion);
+
+                    if(responseConfirmaciones.getBody() == null) {
+                        mensajeFinal.append("No hubo respuesta en confirmación de transferencias").append(" | ");
+                        continue;
+                    }
 
                     if (responseConfirmaciones.getBody().getClass() == GroupConfirmaTransResponseDto.class) {
                         GroupConfirmaTransResponseDto response = (GroupConfirmaTransResponseDto) responseConfirmaciones.getBody();
@@ -397,7 +618,56 @@ public class EjecucionServiceImpl implements EjecucionService {
                                         fechaOperacion,
                                         ipOperacion,
                                         terminalOperacion);
-                                if (responseConfirmacionIndividual.getStatus().equals(Constante.KEY_ERROR_CODE)) {
+
+                                Optional<AbonosSolicitudEntity> abonoOpt = abonosSolicitudRepository.findById(responseConfirmacionIndividual.getIdAbonoSolicitud());
+                                String moneda;
+                                String descripcionMoneda;
+                                String codigoEntidadFinanciera;
+                                String cciDestino;
+
+                                if (abonoOpt.isPresent()) {
+                                    AbonosSolicitudEntity abono = abonoOpt.get();
+                                    moneda = abono.getMoneda();
+                                    descripcionMoneda = "PEN".equals(moneda) ? "Soles" : "Dólares";
+                                    codigoEntidadFinanciera = abono.getCodigoEntidadFinanciera();
+                                    cciDestino = abono.getCuentaDestino();
+                                } else {
+                                    throw new ErrorControladoException("Abono no encontrado con ID: " + responseConfirmacionIndividual.getIdAbonoSolicitud());
+                                }
+
+                                if (responseConfirmacionIndividual.getStatus().equals(Constante.KEY_SUCCESS_CODE)) {
+                                    registrosProcesados++;
+                                    registrosPendientes = registrosTotales - (registrosErroneos + registrosProcesados);
+
+                                    cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                                    cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                                    cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                                    cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                                    cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                                    cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                                    cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_PROCESANDO);
+                                    cabeceraEjecucionRequest.setProceso(Constante.PROCESO_CONFIRMACION);
+                                    cabeceraEjecucionRequest.setDetalleEjecucion(ConstanteError.MENSAJE_PROCESANDO);
+                                    cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                                    cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                                    cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                                    cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                                    cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
+                                    DetalleEjecucionRequestDto detalleEjecucion = new DetalleEjecucionRequestDto();
+                                    detalleEjecucion.setCodigoCabeceraEjecucion(cabeceraEjecucionResponse.getId());
+                                    detalleEjecucion.setNumeroCuenta(cciDestino);
+                                    detalleEjecucion.setMonedaCuenta(moneda);
+                                    detalleEjecucion.setDescripcionMoneda(descripcionMoneda);
+                                    detalleEjecucion.setCodigoEntidadFinanciera(codigoEntidadFinanciera);
+                                    detalleEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_DET_PROCESADO);
+                                    detalleEjecucion.setDetalleEjecucion("Confirmación procesada exitosamente");
+                                    detalleEjecucion.setFechaAuditoria(LocalDateTime.now());
+                                    detalleEjecucion.setUsuarioAuditoria(usuarioEjecucion);
+                                    detalleEjecucion.setIpAuditoria(ipOperacion);
+                                    detalleEjecucion.setTerminalAuditoria(terminalOperacion);
+                                    detalleEjecucionService.registrar(detalleEjecucion);
+                                } else {
                                     ConfirmaTransRequestDto request = mapaConfirmacion.get(responseConfirmacionIndividual.getIdAbonoSolicitud());
                                     if (request != null) {
                                         String mensaje = String.format(
@@ -408,6 +678,48 @@ public class EjecucionServiceImpl implements EjecucionService {
                                         );
 
                                         mensajeFinal.append(mensaje).append(" | ");
+
+                                        registrosErroneos++;
+                                        registrosPendientes = registrosTotales - (registrosErroneos + registrosProcesados);
+
+                                        cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                                        cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                                        cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                                        cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                                        cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                                        cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                                        cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_PROCESANDO);
+                                        cabeceraEjecucionRequest.setProceso(Constante.PROCESO_CONFIRMACION);
+                                        cabeceraEjecucionRequest.setDetalleEjecucion(ConstanteError.MENSAJE_PROCESANDO);
+                                        cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                                        cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                                        cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                                        cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                                        cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
+                                        DetalleEjecucionRequestDto detalleEjecucion = new DetalleEjecucionRequestDto();
+                                        detalleEjecucion.setCodigoCabeceraEjecucion(cabeceraEjecucionResponse.getId());
+                                        detalleEjecucion.setNumeroCuenta(cciDestino);
+                                        detalleEjecucion.setMonedaCuenta(moneda);
+                                        detalleEjecucion.setDescripcionMoneda(descripcionMoneda);
+                                        detalleEjecucion.setCodigoEntidadFinanciera(codigoEntidadFinanciera);
+                                        detalleEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_DET_ERRONEO);
+                                        String truncado;
+                                        if(responseConfirmacionIndividual.getEstado().equals(Constante.ESTADO_ALFIN_CONF_ERROR)){
+                                            truncado = "Error de configuración para acceso a la cuenta de cargo";
+                                        } else if(responseConfirmacionIndividual.getEstado().equals(Constante.ESTADO_ALFIN_SEG_ERROR)){
+                                            truncado = "Error de seguridad";
+                                        } else if(responseConfirmacionIndividual.getEstado().equals(Constante.ESTADO_ALFIN_PLAT_ERROR)){
+                                            truncado = "Error en la plataforma del banco";
+                                        } else {
+                                            truncado = mensaje.length() > 2000 ? mensaje.substring(0, 2000) : mensaje;
+                                        }
+                                        detalleEjecucion.setDetalleEjecucion(truncado);
+                                        detalleEjecucion.setFechaAuditoria(LocalDateTime.now());
+                                        detalleEjecucion.setUsuarioAuditoria(usuarioEjecucion);
+                                        detalleEjecucion.setIpAuditoria(ipOperacion);
+                                        detalleEjecucion.setTerminalAuditoria(terminalOperacion);
+                                        detalleEjecucionService.registrar(detalleEjecucion);
                                     }
                                 }
                             }
@@ -420,12 +732,64 @@ public class EjecucionServiceImpl implements EjecucionService {
                 }
             }
             if (mensajeFinal.isEmpty()) {
+                registrosPendientes = 0;
+
+                cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO);
+                cabeceraEjecucionRequest.setProceso(Constante.PROCESO_CONFIRMACION);
+                cabeceraEjecucionRequest.setDetalleEjecucion("Confirmación procesada exitosamente");
+                cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
                 ejecucionResponse.setStatus(Constante.KEY_SUCCESS_CODE);
             } else {
+                registrosPendientes = 0;
+
+                cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+                cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+                cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+                cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+                cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+                cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+                cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO_ERROR);
+                cabeceraEjecucionRequest.setProceso(Constante.PROCESO_CONFIRMACION);
+                String truncado = mensajeFinal.toString().length() > 2000 ? mensajeFinal.substring(0, 2000) : mensajeFinal.toString();
+                cabeceraEjecucionRequest.setDetalleEjecucion(truncado);
+                cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+                cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+                cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+                cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+                cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
                 ejecucionResponse.setStatus(Constante.KEY_ERROR_CODE);
                 ejecucionResponse.setMessage(mensajeFinal.toString());
             }
         } catch (Exception e) {
+            registrosPendientes = 0;
+
+            cabeceraEjecucionRequest = new CabeceraEjecucionRequestDto();
+            cabeceraEjecucionRequest.setFechaFinProceso(LocalDateTime.now());
+            cabeceraEjecucionRequest.setRegistrosTotales(registrosTotales);
+            cabeceraEjecucionRequest.setRegistrosProcesados(registrosProcesados);
+            cabeceraEjecucionRequest.setRegistrosPendientes(registrosPendientes);
+            cabeceraEjecucionRequest.setRegistrosErroneos(registrosErroneos);
+            cabeceraEjecucionRequest.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO_ERROR);
+            cabeceraEjecucionRequest.setProceso(Constante.PROCESO_CONFIRMACION);
+            cabeceraEjecucionRequest.setDetalleEjecucion("Error no controlado al realizar confirmacion de transferencias");
+            cabeceraEjecucionRequest.setFechaAuditoria(LocalDateTime.now());
+            cabeceraEjecucionRequest.setUsuarioAuditoria(usuarioEjecucion);
+            cabeceraEjecucionRequest.setIpAuditoria(ipOperacion);
+            cabeceraEjecucionRequest.setTerminalAuditoria(terminalOperacion);
+            cabeceraEjecucionService.actualizar(cabeceraEjecucionResponse.getId(), cabeceraEjecucionRequest);
+
             ejecucionResponse.setStatus(Constante.KEY_ERROR_CODE);
             ejecucionResponse.setMessage("Error no controlado al realizar confirmacion de transferencias: " + e.getMessage());
         }

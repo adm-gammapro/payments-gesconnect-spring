@@ -1,14 +1,11 @@
 package com.raissapayments.conector.service.administrativo.impl;
 
 import com.raissa.comun.enums.commons.EstadoRegistroEnum;
-import com.raissa.comun.enums.commons.SortOrderEnum;
 import com.raissa.comun.general.service.AbstractService;
 import com.raissa.comun.util.Constante;
 import com.raissapayments.conector.domain.dto.administrativo.request.TipoPagoRequestDto;
 import com.raissapayments.conector.domain.dto.administrativo.request.TipoPagoSearchDto;
-import com.raissapayments.conector.domain.dto.administrativo.response.CategoriaResponseDto;
 import com.raissapayments.conector.domain.dto.administrativo.response.TipoPagoResponseDto;
-import com.raissapayments.conector.domain.entity.administrativo.CategoriaEntity;
 import com.raissapayments.conector.domain.entity.administrativo.TipoPagoEntity;
 import com.raissapayments.conector.domain.mapper.administrativo.TipoPagoMapper;
 import com.raissapayments.conector.domain.repository.administrativo.TipoPagoRepository;
@@ -17,9 +14,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

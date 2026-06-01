@@ -2,9 +2,11 @@ package com.raissapayments.conector.service.operativo.impl;
 
 import com.raissa.comun.util.Constante;
 import com.raissapayments.conector.domain.dto.operativo.request.CambioEstadoRequestDto;
-import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.EjecucionRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ObservacionCambioEstadoRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ObservacionRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.CabeceraEjecucionRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ejecucion.EjecucionRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.CabeceraEjecucionResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.EjecucionResponseDto;
 import com.raissapayments.conector.domain.entity.administrativo.CategoriaUsuarioEntity;
 import com.raissapayments.conector.domain.entity.commons.EstadoSolicitudEntity;
@@ -20,11 +22,14 @@ import com.raissapayments.conector.domain.repository.operativo.ConfiguracionRegl
 import com.raissapayments.conector.domain.repository.operativo.CuentaOrdenanteRepository;
 import com.raissapayments.conector.domain.repository.operativo.GestionAutorizacionSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
+import com.raissapayments.conector.exception.operativo.ErrorControladoException;
+import com.raissapayments.conector.service.operativo.CabeceraEjecucionService;
 import com.raissapayments.conector.service.operativo.EjecucionService;
 import com.raissapayments.conector.service.operativo.ObservacionService;
 import com.raissapayments.conector.service.operativo.SolicitudFlujoService;
 import com.raissapayments.conector.service.operativo.TrackingService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +39,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
     private final SolicitudRepository solicitudRepo;
     private final CargoSolicitudRepository cargoSolicitudRepo;
@@ -45,18 +51,63 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
     private final GestionAutorizacionSolicitudRepository gestionAutorizacionSolicitudRepository;
     private final ConfiguracionReglaRepository configuracionReglaRepository;
     private final CategoriaUsuarioRepository categoriausuarioRepository;
+    private final CabeceraEjecucionService cabeceraEjecucionService;
 
     @Override
     @Transactional
-    public Long validar(CambioEstadoRequestDto req) {
+    public Long validar(CambioEstadoRequestDto req) throws Exception {
+        int registrosTotales = 0;
+        int registrosProcesados = 0;
+        int registrosPendientes;
+        int registrosErroneos = 0;
+
         List<CargoSolicitudEntity> listCargo = cargoSolicitudRepo.findBySolicitudIdAndEstadoRegistro(req.getSolicitudId(),
                                                                                                 Constante.ESTADO_ACTIVO);
         List<String> cuentasNoConcuerdan = new ArrayList<>();
         List<String> monedasCuentasNoConcuerdan = new ArrayList<>();
+        CabeceraEjecucionRequestDto cabeceraEjecucion = new CabeceraEjecucionRequestDto();
+        CabeceraEjecucionResponseDto responseCabeceraEjecucion = new CabeceraEjecucionResponseDto();
 
         for (CargoSolicitudEntity cargo : listCargo) {
+            registrosTotales = cargo.getAbonos().size();
+            registrosPendientes = cargo.getAbonos().size();
+
+            cabeceraEjecucion.setCodigoJob(req.getSolicitudId());
+            cabeceraEjecucion.setCodigoCliente(req.getCodigoCliente());
+            cabeceraEjecucion.setCodigoSistema(Constante.SISTEMA_PAYMENTS);
+            cabeceraEjecucion.setFechaInicioProceso(LocalDateTime.now());
+            cabeceraEjecucion.setRegistrosTotales(registrosTotales);
+            cabeceraEjecucion.setRegistrosProcesados(registrosProcesados);
+            cabeceraEjecucion.setRegistrosPendientes(registrosPendientes);
+            cabeceraEjecucion.setRegistrosErroneos(registrosErroneos);
+            cabeceraEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_PROCESANDO);
+            cabeceraEjecucion.setProceso(Constante.PROCESO_VALIDACION);
+            cabeceraEjecucion.setDetalleEjecucion("Iniciando validación");
+            cabeceraEjecucion.setFechaAuditoria(LocalDateTime.now());
+            cabeceraEjecucion.setUsuarioAuditoria(req.getUsuarioAuditoria());
+            cabeceraEjecucion.setIpAuditoria(req.getIpAuditoria());
+            cabeceraEjecucion.setTerminalAuditoria(req.getTerminalAuditoria());
+            responseCabeceraEjecucion = cabeceraEjecucionService.registrar(cabeceraEjecucion);
+
             String cuentaOrigen = cargo.getCuentaOrigen();
             if (cuentaOrigen == null || cuentaOrigen.isBlank()) {
+                registrosErroneos = registrosTotales;
+
+                cabeceraEjecucion = new CabeceraEjecucionRequestDto();
+                cabeceraEjecucion.setFechaFinProceso(LocalDateTime.now());
+                cabeceraEjecucion.setRegistrosTotales(registrosTotales);
+                cabeceraEjecucion.setRegistrosProcesados(0);
+                cabeceraEjecucion.setRegistrosPendientes(0);
+                cabeceraEjecucion.setRegistrosErroneos(registrosErroneos);
+                cabeceraEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO_ERROR);
+                cabeceraEjecucion.setProceso(Constante.PROCESO_VALIDACION);
+                cabeceraEjecucion.setDetalleEjecucion("El campo cuentaOrigen no puede ser nulo o vacío en CargoSolicitud con id: " + cargo.getId());
+                cabeceraEjecucion.setFechaAuditoria(LocalDateTime.now());
+                cabeceraEjecucion.setUsuarioAuditoria(req.getUsuarioAuditoria());
+                cabeceraEjecucion.setIpAuditoria(req.getIpAuditoria());
+                cabeceraEjecucion.setTerminalAuditoria(req.getTerminalAuditoria());
+                cabeceraEjecucionService.actualizar(responseCabeceraEjecucion.getId(), cabeceraEjecucion);
+
                 throw new IllegalArgumentException("El campo cuentaOrigen no puede ser nulo o vacío en CargoSolicitud con id: " + cargo.getId());
             }
 
@@ -90,9 +141,10 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
         if (observacionConcatenada.isEmpty()) {
             EjecucionRequestDto ejecucion = new EjecucionRequestDto();
             ejecucion.setIdSolicitud(req.getSolicitudId());
+            ejecucion.setIdCabeceraEjecucion(responseCabeceraEjecucion.getId());
             ejecucion.setListInstituciones(req.getListInstituciones());
             ejecucion.setUsuarioAuditoria(req.getUsuarioAuditoria());
-            ejecucion.setFechaAuditoria(req.getFechaAuditoria());
+            ejecucion.setFechaAuditoria(LocalDateTime.now());
             ejecucion.setIpAuditoria(req.getIpAuditoria());
             ejecucion.setTerminalAuditoria(req.getTerminalAuditoria());
             EjecucionResponseDto responseConsulta = ejecucionService.consultarTransferenciaInmediata(ejecucion);
@@ -110,13 +162,34 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
                 idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_VALIDADO, Constante.EVENTO_VALIDAR);
             }
         } else {
+            registrosErroneos = registrosTotales;
+
+            cabeceraEjecucion = new CabeceraEjecucionRequestDto();
+            cabeceraEjecucion.setFechaFinProceso(LocalDateTime.now());
+            cabeceraEjecucion.setRegistrosTotales(registrosTotales);
+            cabeceraEjecucion.setRegistrosProcesados(0);
+            cabeceraEjecucion.setRegistrosPendientes(0);
+            cabeceraEjecucion.setRegistrosErroneos(registrosErroneos);
+            cabeceraEjecucion.setEstadoProcesamiento(Constante.ESTADO_PROCESAMIENTO_CAB_FINALIZADO_ERROR);
+            cabeceraEjecucion.setProceso(Constante.PROCESO_VALIDACION);
+            String truncado = observacionConcatenada.length() > 2000 ? observacionConcatenada.substring(0, 2000) : observacionConcatenada;
+            cabeceraEjecucion.setDetalleEjecucion(truncado);
+            cabeceraEjecucion.setFechaAuditoria(LocalDateTime.now());
+            cabeceraEjecucion.setUsuarioAuditoria(req.getUsuarioAuditoria());
+            cabeceraEjecucion.setIpAuditoria(req.getIpAuditoria());
+            cabeceraEjecucion.setTerminalAuditoria(req.getTerminalAuditoria());
+            cabeceraEjecucionService.actualizar(responseCabeceraEjecucion.getId(), cabeceraEjecucion);
+
             ObservacionCambioEstadoRequestDto observacion = cargarDatosObservacion(req,
                     Constante.EVENTO_VALIDAR,
                     observacionConcatenada);
 
             registrarObservacion(observacion, Constante.TIPO_OBSERVACION_OBSERVADO);
-            idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_OBSERVADO, Constante.EVENTO_VALIDAR);
+            cambiarEstado(req, Constante.ESTADO_SOLICITUD_OBSERVADO, Constante.EVENTO_VALIDAR);
         }
+
+        idSolicitud = this.enProcesamiento(req);
+
         return idSolicitud;
     }
 
@@ -133,15 +206,22 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
     @Override
     @Transactional
     public Long autorizar(CambioEstadoRequestDto req) {
-        return cambiarEstado(req, Constante.ESTADO_SOLICITUD_AUTORIZADO, "AUTORIZAR");
+        String estadoSolicitud = gestionAutorizacion(req);
+        return cambiarEstado(req, estadoSolicitud, Constante.EVENTO_AUTORIZAR);
     }
 
     @Override
     @Transactional
-    public Long ejecutar(CambioEstadoRequestDto req) {
+    public Long ejecutar(CambioEstadoRequestDto req) throws Exception {
         Long idSolicitud;
         EjecucionRequestDto ejecucion = new EjecucionRequestDto();
+
         ejecucion.setIdSolicitud(req.getSolicitudId());
+        ejecucion.setCodigoCliente(req.getCodigoCliente());
+        ejecucion.setListInstituciones(req.getListInstituciones());
+        ejecucion.setUsuarioAuditoria(req.getUsuarioAuditoria());
+        ejecucion.setIpAuditoria(req.getIpAuditoria());
+        ejecucion.setTerminalAuditoria(req.getTerminalAuditoria());
         EjecucionResponseDto responseConsulta = ejecucionService.confirmarTransferenciaInmediata(ejecucion);
 
         if(responseConsulta.getStatus().equals(Constante.KEY_ERROR_CODE)) {
@@ -150,10 +230,12 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
                     responseConsulta.getMessage());
             registrarObservacion(observacion, Constante.TIPO_OBSERVACION_OBSERVADO);
 
-            idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_PROCESADO_PARCIAL, Constante.EVENTO_EJECUTAR);
+            cambiarEstado(req, Constante.ESTADO_SOLICITUD_PROCESADO_PARCIAL, Constante.EVENTO_EJECUTAR);
         } else {
-            idSolicitud = cambiarEstado(req, Constante.ESTADO_SOLICITUD_PROCESADO_TOTAL, Constante.EVENTO_EJECUTAR);
+            cambiarEstado(req, Constante.ESTADO_SOLICITUD_PROCESADO_TOTAL, Constante.EVENTO_EJECUTAR);
         }
+
+        idSolicitud = this.enProcesamiento(req);
 
         return idSolicitud;
     }
@@ -174,6 +256,26 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
         registrarObservacion(req, Constante.TIPO_OBSERVACION_ANULADO);
 
         return idSolicitud;
+    }
+
+    @Override
+    @Transactional
+    public Long enProcesamiento(CambioEstadoRequestDto req) {
+        if (req == null) throw new IllegalArgumentException("Request obligatorio");
+        SolicitudEntity sol = solicitudRepo.findById(req.getSolicitudId())
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada: " + req.getSolicitudId()));
+
+        boolean enProcesamiento = !sol.getEnProcesamiento();
+
+        sol.setEnProcesamiento(enProcesamiento);
+        sol.setAudiFechaMod(LocalDateTime.now());
+        sol.setAudiUsuMod(req.getUsuarioAuditoria());
+        sol.setAudiIpMod(req.getIpAuditoria());
+        sol.setAudiNomTerminalMod(req.getTerminalAuditoria());
+
+        solicitudRepo.save(sol);
+
+        return sol.getId();
     }
 
     /**
@@ -218,7 +320,7 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
         oreq.setTipoObservacion(tipoObs);
         oreq.setEventoObservacion(req.getEventoObservacion());
         oreq.setUsuarioObservacion(req.getUsuarioObservacion());
-        oreq.setFechaAuditoria(req.getFechaAuditoria());
+        oreq.setFechaAuditoria(LocalDateTime.now());
         oreq.setUsuarioAuditoria(req.getUsuarioAuditoria());
         oreq.setTerminalAuditoria(req.getTerminalAuditoria());
         oreq.setIpAuditoria(req.getIpAuditoria());
@@ -234,7 +336,6 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
         observacion.setUsuarioObservacion(req.getUsuario());
         observacion.setEventoObservacion(evento);
         observacion.setUsuarioAuditoria(req.getUsuarioAuditoria());
-        observacion.setFechaAuditoria(req.getFechaAuditoria());
         observacion.setIpAuditoria(req.getIpAuditoria());
         observacion.setTerminalAuditoria(req.getTerminalAuditoria());
         observacion.setDescripcionObservacion(descripcionObervacion);
@@ -266,23 +367,56 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
                                 gestionAutorizacionSolicitud.setEstadoProcesamiento(Constante.ESTADO_GESTION_AUTORIZACION_PENDIENTE);
                                 gestionAutorizacionSolicitud.setEstadoRegistro(Constante.ESTADO_ACTIVO);
                                 gestionAutorizacionSolicitud.setAudiUsuario(req.getUsuarioAuditoria());
-                                gestionAutorizacionSolicitud.setAudiFechIns(req.getFechaAuditoria());
+                                gestionAutorizacionSolicitud.setAudiFechIns(LocalDateTime.now());
                                 gestionAutorizacionSolicitud.setAudiIp(req.getIpAuditoria());
                                 gestionAutorizacionSolicitud.setAudiNomTerminal(req.getTerminalAuditoria());
                                 gestionAutorizacionSolicitudRepository.save(gestionAutorizacionSolicitud);
                             }
                         } else {
-                            idSolicitud = -2L;
+                            idSolicitud = -2L;//No encuentra configuraciones
                         }
                     }
                 } else {
-                    idSolicitud = -1L;
+                    idSolicitud = -1L;//No hay configuraciones en base a reglas
                 }
             }
         } else {
-            idSolicitud = 0L;
+            idSolicitud = 0L;//No hay solicitud
         }
 
         return idSolicitud;
+    }
+
+    private String gestionAutorizacion(CambioEstadoRequestDto req) {
+        String estadosolicitud;
+
+        int actualizados = gestionAutorizacionSolicitudRepository
+                .actualizarAutorizacionesPendientes(req.getSolicitudId(),
+                        req.getUsuarioAuditoria(),
+                        LocalDateTime.now(),
+                        req.getIpAuditoria(),
+                        req.getTerminalAuditoria()
+                );
+
+        if (actualizados == 0) {
+            throw new ErrorControladoException(
+                    String.format("No se encontraron autorizaciones pendientes para la solicitud: %d",
+                            req.getSolicitudId())
+            );
+        } else {
+            List<GestionAutorizacionSolicitudEntity> newGestiones = gestionAutorizacionSolicitudRepository
+                    .obtenerListaAutorizacionesPorPrioridad(req.getSolicitudId(),
+                            "PENDIENTE",
+                            Constante.ESTADO_ACTIVO);
+            if(!newGestiones.isEmpty()) {
+                estadosolicitud = Constante.ESTADO_SOLICITUD_AUTORIZADO_PARCIAL;
+            } else {
+                estadosolicitud = Constante.ESTADO_SOLICITUD_AUTORIZADO;
+            }
+        }
+
+        log.debug("Actualizadas {} autorizaciones para solicitud: {}", actualizados, req.getSolicitudId());
+
+        return estadosolicitud;
     }
 }

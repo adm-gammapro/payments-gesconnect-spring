@@ -1,9 +1,11 @@
 package com.raissapayments.conector.rest.operativo;
 
 import com.raissapayments.conector.domain.dto.operativo.request.CambioEstadoRequestDto;
+import com.raissapayments.conector.domain.dto.operativo.request.ConsultaVoucherAbonoSolicitudRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.LiquidacionSolicitudRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.ObservacionCambioEstadoRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.SolicitudSearchDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ConstanciaPagoResponse;
 import com.raissapayments.conector.domain.dto.operativo.response.LiquidacionSolicitudResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.SolicitudResponseDto;
 import com.raissapayments.conector.service.operativo.SolicitudFlujoService;
@@ -12,13 +14,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
@@ -36,7 +35,7 @@ public class SolicitudRest {
      * @return {@link Long}
      */
     @PostMapping("/validar")
-    public ResponseEntity<Long> validar(@Valid @RequestBody CambioEstadoRequestDto req) {
+    public ResponseEntity<Long> validar(@Valid @RequestBody CambioEstadoRequestDto req) throws Exception {
         return ResponseEntity.ok(flujoService.validar(req));
     }
 
@@ -69,7 +68,7 @@ public class SolicitudRest {
      * @return {@link Long}
      */
     @PostMapping("/ejecutar")
-    public ResponseEntity<Long> ejecutar(@Valid @RequestBody CambioEstadoRequestDto req) {
+    public ResponseEntity<Long> ejecutar(@Valid @RequestBody CambioEstadoRequestDto req) throws Exception {
         return ResponseEntity.ok(flujoService.ejecutar(req));
     }
 
@@ -80,7 +79,7 @@ public class SolicitudRest {
      * @return {@link Long}
      */
     @PostMapping("/reprocesar")
-    public ResponseEntity<Long> reprocesar(@Valid @RequestBody CambioEstadoRequestDto req) {
+    public ResponseEntity<Long> reprocesar(@Valid @RequestBody CambioEstadoRequestDto req) throws Exception {
         return ResponseEntity.ok(flujoService.ejecutar(req));
     }
 
@@ -125,5 +124,27 @@ public class SolicitudRest {
     @PostMapping("/resumen-liquidacion")
     public ResponseEntity<LiquidacionSolicitudResponseDto> resumenLiquidacion(@Valid @RequestBody LiquidacionSolicitudRequestDto req) {
         return ResponseEntity.ok(solicitudService.resumenLiquidacionSolicitud(req));
+    }
+
+    /**
+     * Actualiza el indicador de procesamiento de la solicitud
+     *
+     * @param req datos de la solicitud, auditoría y observación
+     * @return {@link Long}
+     */
+    @PostMapping("/en-procesamiento")
+    public ResponseEntity<Long> enProcesamiento(@Valid @RequestBody CambioEstadoRequestDto req) {
+        return ResponseEntity.ok(flujoService.enProcesamiento(req));
+    }
+
+    /**
+     * Devuelve los datos para armar el voucher
+     *
+     * @param req datos del id de abono
+     * @return {@link Long}
+     */
+    @PostMapping("/constancia-pago")
+    public ResponseEntity<ConstanciaPagoResponse> constanciaPago(@Valid @RequestBody ConsultaVoucherAbonoSolicitudRequestDto req) {
+        return ResponseEntity.ok(solicitudService.obtenerConstanciaPago(req.getAbonoSolicitudId()));
     }
 }

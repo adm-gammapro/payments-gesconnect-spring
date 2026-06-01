@@ -11,6 +11,7 @@ public class SolicitudResponseDto {
     private String fechaCarga;
     private String usuarioCarga;
     private Integer cantidadOrdenes;
+    private Boolean enProcesamiento;
     private String estadoSolicitud;
     private List<String> usuariosAutorizacion;
     private List<CargoSolicitudResponseDto> cargos;

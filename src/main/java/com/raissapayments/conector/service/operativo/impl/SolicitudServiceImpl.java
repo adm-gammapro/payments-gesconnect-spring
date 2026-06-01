@@ -4,6 +4,7 @@ import com.raissa.comun.general.service.AbstractService;
 import com.raissa.comun.util.Constante;
 import com.raissapayments.conector.domain.dto.operativo.request.LiquidacionSolicitudRequestDto;
 import com.raissapayments.conector.domain.dto.operativo.request.SolicitudSearchDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ConstanciaPagoResponse;
 import com.raissapayments.conector.domain.dto.operativo.response.DetalleLiquidacionSolicitud;
 import com.raissapayments.conector.domain.dto.operativo.response.LiquidacionSolicitudResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.SolicitudResponseDto;
@@ -12,26 +13,29 @@ import com.raissapayments.conector.domain.entity.operativo.CargoSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.GestionAutorizacionSolicitudEntity;
 import com.raissapayments.conector.domain.entity.operativo.SolicitudEntity;
 import com.raissapayments.conector.domain.mapper.operativo.SolicitudMapper;
+import com.raissapayments.conector.domain.repository.operativo.AbonosSolicitudRepository;
+import com.raissapayments.conector.domain.repository.operativo.CargoSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.GestionAutorizacionSolicitudRepository;
 import com.raissapayments.conector.domain.repository.operativo.SolicitudRepository;
 import com.raissapayments.conector.service.operativo.SolicitudService;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.persistence.criteria.Expression;
-import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,17 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
     private final SolicitudRepository solicitudRepo;
     private final SolicitudMapper solicitudMapper;
     private final GestionAutorizacionSolicitudRepository gestionAutorizacionSolicitudRepository;
+    private final AbonosSolicitudRepository abonosSolicitudRepository;
+    private final CargoSolicitudRepository cargoSolicitudRepository;
+
+    private static final DateTimeFormatter FECHA_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy")
+            .withLocale(new Locale("es", "ES"));
+
+    private static final DateTimeFormatter HORA_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a")
+            .withLocale(new Locale("es", "ES"));
+
+    private static final DateTimeFormatter FECHA_ORIGEN_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter HORA_ORIGEN_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public Page<SolicitudResponseDto> getPageSolicitudes(SolicitudSearchDto filtro) {
         Pageable pageable = buildPageable(filtro);
@@ -49,7 +64,48 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
                 Sort.by(Sort.Direction.DESC, "fechaCarga")
         );
 
-        Page<SolicitudEntity> page = solicitudRepo.findAll(buildSpec(filtro), sortedPageable);
+        LocalDateTime start = null;
+        LocalDateTime end = null;
+        if(!_isEmpty(filtro.getFechaInicial()) && !_isEmpty(filtro.getFechaFinal())) {
+            LocalDate fechaInicio = LocalDate.parse(filtro.getFechaInicial().trim());
+            LocalDate fechaFin = LocalDate.parse(filtro.getFechaFinal().trim());
+
+            start = fechaInicio.atStartOfDay();
+            end = fechaFin.plusDays(1).atStartOfDay();
+        }
+
+        Page<SolicitudEntity> page;
+        if (_equiv(filtro.getProceso(), "autorizar")) {
+            page = solicitudRepo.findSolicitudesPendientesParaAutorizar(filtro.getUsuarioActual(),
+                    filtro.getCodigo(),
+                    filtro.getUsuarios(),
+                    filtro.getEstadoSolicitud(),
+                    start,
+                    end,
+                    sortedPageable);
+        } else if (_equiv(filtro.getProceso(), "cargar")) {
+            page = solicitudRepo.findSolicitudesByFiltrosCargar(filtro.getUsuarios(),
+                    filtro.getCodigo(),
+                    filtro.getEstadoSolicitud(),
+                    start,
+                    end,
+                    filtro.getUsuarioActual(),
+                    sortedPageable);
+        } else if(_equiv(filtro.getProceso(), "ejecutar")) {
+            page = solicitudRepo.findSolicitudesByFiltros(filtro.getUsuarios(),
+                    filtro.getCodigo(),
+                    filtro.getEstadoSolicitud(),
+                    start,
+                    end,
+                    sortedPageable);
+        } else {
+            page = solicitudRepo.findSolicitudesByFiltros(filtro.getUsuarios(),
+                    filtro.getCodigo(),
+                    filtro.getEstadoSolicitud(),
+                    start,
+                    end,
+                    sortedPageable);
+        }
         List<SolicitudResponseDto> dtos = page.getContent().stream()
                 .map(solicitudMapper::entityToResponseDto)
                 .toList();
@@ -100,32 +156,27 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
                 .build();
     }
 
-    private Specification<SolicitudEntity> buildSpec(SolicitudSearchDto f) {
-        return (root, query, cb) -> {
-            List<Predicate> p = new ArrayList<>();
+    @Transactional(readOnly = true)
+    public ConstanciaPagoResponse obtenerConstanciaPago(Long abonosolicitudId) {
+        AbonosSolicitudEntity entity = abonosSolicitudRepository.findById(abonosolicitudId)
+                .orElseThrow(() -> new RuntimeException("Abono no encontrado"));
 
-            if (f.getUsuario() != null && !f.getUsuario().isBlank()) {
-                p.add(cb.equal(cb.lower(root.get("usuarioCarga")), f.getUsuario().toLowerCase()));
-            }
-            if (f.getCodigo() != null && !f.getCodigo().isBlank()) {
-                p.add(cb.equal(root.get("id"), Long.valueOf(f.getCodigo())));
-            }
-            if (f.getEstadoSolicitud() != null && !f.getEstadoSolicitud().isEmpty()) {
-                Expression<String> estadoCodigo = root.get("estadoSolicitud").get("codigo");
-                p.add(estadoCodigo.in(f.getEstadoSolicitud()));
-            }
-            if (f.getFechaInicial() != null && !f.getFechaInicial().isBlank() &&
-                f.getFechaFinal() != null && !f.getFechaFinal().isBlank()) {
-                LocalDate fechaInicio = LocalDate.parse(f.getFechaInicial().trim());
-                LocalDate fechaFin = LocalDate.parse(f.getFechaFinal().trim());
+        CargoSolicitudEntity cargo = cargoSolicitudRepository.findById(entity.getCargoSolicitud().getId())
+                .orElseThrow(() -> new RuntimeException("Cargo no encontrado"));
 
-                LocalDateTime start = fechaInicio.atStartOfDay();
-                LocalDateTime end = fechaFin.plusDays(1).atStartOfDay();
+        ConstanciaPagoResponse response = new ConstanciaPagoResponse();
 
-                p.add(cb.between(root.get("fechaCarga"), start, end));
-            }
-            return cb.and(p.toArray(new Predicate[0]));
-        };
+        response.setCodigoOperacion(entity.getMovimientoUid());
+        response.setBancoOrigen(cargo.getCodigoEntidadFinanciera());
+        response.setCuentaOrigen(cargo.getCuentaOrigen());
+        response.setDestinatario(entity.getBeneficiario());
+        response.setDestino(entity.getCuentaDestino());
+        response.setEntidadDestino(entity.getCodigoEntidadFinanciera());
+        response.setMoneda(convertirMoneda(entity.getMoneda()));
+        response.setMonto(formatearMonto(entity.getMontoDestino(), entity.getMoneda()));
+        response.setFecha(formatearFechaCompleta(entity));
+
+        return response;
     }
 
     private List<SolicitudResponseDto> completarBeneficiariosValidados(List<SolicitudResponseDto> list) {
@@ -138,7 +189,7 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
                 List<String> usuariosAutorizacion = new ArrayList<>();
 
                 List<GestionAutorizacionSolicitudEntity> listGestion =
-                        gestionAutorizacionSolicitudRepository.findByCodigoSolicitudAndEstadoProcesamientoAndEstadoRegistro(solicitud.getId(),
+                        gestionAutorizacionSolicitudRepository.obtenerListaAutorizacionesPorPrioridad(solicitud.getId(),
                                 Constante.ESTADO_GESTION_AUTORIZACION_PENDIENTE,
                                 Constante.ESTADO_ACTIVO);
                 if (listGestion != null && !listGestion.isEmpty()) {
@@ -184,5 +235,73 @@ public class SolicitudServiceImpl extends AbstractService implements SolicitudSe
 
     private BigDecimal calcularTotalComisiones(BigDecimal comisionesOrigen, BigDecimal comisionesDestino) {
         return comisionesOrigen.add(comisionesDestino);
+    }
+
+    private String convertirMoneda(String moneda) {
+        if (moneda == null) {
+            return "S/";
+        }
+
+        String monedaUpper = moneda.toUpperCase();
+        return switch (monedaUpper) {
+            case "PEN" -> "S/";
+            case "USD" -> "$";
+            default -> "S/";
+        };
+    }
+
+    private String formatearMonto(BigDecimal monto, String moneda) {
+        if (monto == null) {
+            return "S/ 0.00";
+        }
+
+        String simbolo = convertirMoneda(moneda);
+        String montoFormateado = String.format("%,.2f", monto);
+
+        return String.format("%s %s", simbolo, montoFormateado);
+    }
+
+    private String formatearFechaCompleta(AbonosSolicitudEntity entity) {
+        String fechaStr = entity.getFechaTransferencia();
+        String horaStr = entity.getHoraTransferencia();
+
+        String fechaFormateada = formatearFecha(fechaStr);
+        String horaFormateada = formatearHora(horaStr);
+
+        if (fechaFormateada != null && horaFormateada != null) {
+            return String.format("%s %s", fechaFormateada, horaFormateada);
+        } else if (fechaFormateada != null) {
+            return fechaFormateada;
+        } else if (horaFormateada != null) {
+            return horaFormateada;
+        }
+
+        return "Fecha no disponible";
+    }
+
+    private String formatearFecha(String fechaStr) {
+        if (fechaStr == null || fechaStr.isEmpty()) {
+            return null;
+        }
+
+        try {
+            LocalDate fecha = LocalDate.parse(fechaStr, FECHA_ORIGEN_FORMATTER);
+            return fecha.format(FECHA_FORMATTER);
+        } catch (Exception e) {
+            return fechaStr;
+        }
+    }
+
+    private String formatearHora(String horaStr) {
+        if (horaStr == null || horaStr.isEmpty()) {
+            return null;
+        }
+
+        try {
+            LocalTime hora = LocalTime.parse(horaStr, HORA_ORIGEN_FORMATTER);
+            return hora.format(HORA_FORMATTER);
+        } catch (Exception e) {
+            return horaStr;
+        }
     }
 }

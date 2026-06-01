@@ -51,6 +51,9 @@ public class SolicitudEntity extends Auditoria {
     @Column(name = "cantidad_ordenes", nullable = false)
     private Integer cantidadOrdenes;
 
+    @Column(name = "en_procesamiento")
+    private Boolean enProcesamiento = false;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "estado_solicitud", nullable = false)
     private EstadoSolicitudEntity estadoSolicitud;

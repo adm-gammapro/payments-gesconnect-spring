@@ -9,7 +9,7 @@ public interface SolicitudFlujoService {
      *
      * @param req Datos de solicitud
      */
-    Long validar(CambioEstadoRequestDto req);
+    Long validar(CambioEstadoRequestDto req) throws Exception;
 
     /**
      * Envía a autorización y cambia estado a PENDIENTE_AUTORIZACION.
@@ -30,7 +30,7 @@ public interface SolicitudFlujoService {
      *
      * @param req datos de solicitud y auditoría
      */
-    Long ejecutar(CambioEstadoRequestDto req);
+    Long ejecutar(CambioEstadoRequestDto req) throws Exception;
 
     /**
      * Observa y cambia estado a OBSERVADO, registrando observación.
@@ -45,4 +45,6 @@ public interface SolicitudFlujoService {
      * @param req datos de solicitud, auditoría y observación
      */
     Long anular(ObservacionCambioEstadoRequestDto req);
+
+    Long enProcesamiento(CambioEstadoRequestDto req);
 }

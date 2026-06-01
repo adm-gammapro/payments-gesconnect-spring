@@ -11,9 +11,11 @@ import java.util.List;
 @Getter
 @Setter
 public class SolicitudSearchDto extends SearchRequestDTO {
-    private String usuario;
+    private List<String> usuarios;
     private String fechaInicial;
     private String fechaFinal;
     private String codigo;
     private List<String> estadoSolicitud;
+    private String usuarioActual;
+    private String proceso;//'cargar' 'gestionar' | 'validar' | 'autorizar' | 'ejecutar';
 }
