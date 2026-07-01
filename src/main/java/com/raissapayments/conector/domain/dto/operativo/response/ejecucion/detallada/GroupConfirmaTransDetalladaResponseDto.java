@@ -1,0 +1,23 @@
+package com.raissapayments.conector.domain.dto.operativo.response.ejecucion.detallada;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class GroupConfirmaTransDetalladaResponseDto {
+    private String status;
+    private String message;
+    private List<ConfirmaTransResponseDto> listRespuestaConfirmacionTransferencia;
+
+}

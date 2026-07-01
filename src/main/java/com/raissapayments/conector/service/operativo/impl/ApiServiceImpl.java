@@ -11,6 +11,8 @@ import com.raissapayments.conector.domain.dto.operativo.response.LoginResponseDt
 import com.raissapayments.conector.domain.dto.operativo.response.SaldoResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.GroupConfirmaTransResponseDto;
 import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.GroupConsultaTransResponseDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.detallada.GroupConfirmaTransDetalladaResponseDto;
+import com.raissapayments.conector.domain.dto.operativo.response.ejecucion.detallada.GroupConsultaTransDetalladaResponseDto;
 import com.raissapayments.conector.exception.operativo.EmptyResponseException;
 import com.raissapayments.conector.exception.operativo.ErrorControladoException;
 import com.raissapayments.conector.service.operativo.ApiService;
@@ -220,6 +222,63 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
     }
 
     @Override
+    public ResponseDTO<?> consultaTranferenciaDetallada(String key,
+                                                        String apiKey,
+                                                        GroupConsultaTransBffRequestDto consultas) {
+        try {
+            String url = apiUrl + "/api/bff/consulta-transferencia-detallada/" + key;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set(Constante.X_API_KEY, apiKey);
+
+            HttpEntity<GroupConsultaTransBffRequestDto> request = new HttpEntity<>(consultas, headers);
+
+            log.info("Consultando en: {}", url);
+
+            ResponseEntity<GroupConsultaTransDetalladaResponseDto> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    request,
+                    GroupConsultaTransDetalladaResponseDto.class
+            );
+
+            GroupConsultaTransDetalladaResponseDto consultaResponse = response.getBody();
+            if (_isEmpty(consultaResponse)) {
+                throw new ErrorControladoException(ConstanteError.MENSAJE_ERROR_RESPUESTA_VACIA);
+            }
+
+            if (consultaResponse != null && _equiv(consultaResponse.getStatus(), Constante.KEY_ERROR_CODE)) {
+                throw new ErrorControladoException("Respuesta con error: " + consultaResponse.getMessage());
+            }
+
+            log.info("Consulta de transferencias exitosa - status: {}", consultaResponse != null ? consultaResponse.getStatus() : Constante.SIN_STATUS);
+
+            return ResponseDTO.builder()
+                    .status(true)
+                    .message(consultaResponse != null ? consultaResponse.getStatus() : Constante.SIN_STATUS)
+                    .body(consultaResponse)
+                    .build();
+        } catch (ErrorControladoException e) {
+            log.error(ConstanteError.MENSAJE_ERROR_ERROR_VALIDACION_API_KEY, apiKey, e.getMessage());
+
+            return ResponseDTO.builder()
+                    .status(false)
+                    .message(ConstanteError.MENSAJE_ERROR_ERROR_VALIDACION + e.getMessage())
+                    .body(null)
+                    .build();
+        } catch (Exception e) {
+            log.error(ConstanteError.MENSAJE_ERROR_INESPERADO_API_KEY, apiKey, e.getMessage());
+
+            return ResponseDTO.builder()
+                    .status(false)
+                    .message(ConstanteError.MENSAJE_ERROR_INESPERADO + e.getMessage())
+                    .body(null)
+                    .build();
+        }
+    }
+
+    @Override
     public ResponseDTO<?> confirmacionTranferencia(String key,
                                                    String apiKey,
                                                    GroupConfirmaTransBffRequestDto confirmaciones) {
@@ -242,6 +301,63 @@ public class ApiServiceImpl extends AbstractService implements ApiService {
             );
 
             GroupConfirmaTransResponseDto confirmacionResponse = response.getBody();
+            if (_isEmpty(confirmacionResponse)) {
+                throw new ErrorControladoException(ConstanteError.MENSAJE_ERROR_RESPUESTA_VACIA);
+            }
+
+            if (confirmacionResponse != null && _equiv(confirmacionResponse.getStatus(), Constante.KEY_ERROR_CODE)) {
+                throw new ErrorControladoException("Respuesta con error: " + confirmacionResponse.getMessage());
+            }
+
+            log.info("Confirmacion de transferencias exitosa - status: {}", confirmacionResponse != null ? confirmacionResponse.getStatus() : Constante.SIN_STATUS);
+
+            return ResponseDTO.builder()
+                    .status(true)
+                    .message(confirmacionResponse != null ? confirmacionResponse.getStatus() : Constante.SIN_STATUS)
+                    .body(confirmacionResponse)
+                    .build();
+        } catch (ErrorControladoException e) {
+            log.error(ConstanteError.MENSAJE_ERROR_ERROR_VALIDACION_API_KEY, apiKey, e.getMessage());
+
+            return ResponseDTO.builder()
+                    .status(false)
+                    .message(ConstanteError.MENSAJE_ERROR_ERROR_VALIDACION + e.getMessage())
+                    .body(null)
+                    .build();
+        } catch (Exception e) {
+            log.error(ConstanteError.MENSAJE_ERROR_INESPERADO_API_KEY, apiKey, e.getMessage());
+
+            return ResponseDTO.builder()
+                    .status(false)
+                    .message(ConstanteError.MENSAJE_ERROR_INESPERADO + e.getMessage())
+                    .body(null)
+                    .build();
+        }
+    }
+
+    @Override
+    public ResponseDTO<?> confirmacionTranferenciaDetallada(String key,
+                                                            String apiKey,
+                                                            GroupConfirmaTransBffRequestDto confirmaciones) {
+        try {
+            String url = apiUrl + "/api/bff/confirma-transferencia-detallada/" + key;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set(Constante.X_API_KEY, apiKey);
+
+            HttpEntity<GroupConfirmaTransBffRequestDto> request = new HttpEntity<>(confirmaciones, headers);
+
+            log.info("Confirmando en: {}", url);
+
+            ResponseEntity<GroupConfirmaTransDetalladaResponseDto> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    request,
+                    GroupConfirmaTransDetalladaResponseDto.class
+            );
+
+            GroupConfirmaTransDetalladaResponseDto confirmacionResponse = response.getBody();
             if (_isEmpty(confirmacionResponse)) {
                 throw new ErrorControladoException(ConstanteError.MENSAJE_ERROR_RESPUESTA_VACIA);
             }

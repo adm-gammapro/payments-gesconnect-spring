@@ -14,7 +14,15 @@ public interface ApiService {
                                         String apiKey,
                                         GroupConsultaTransBffRequestDto consultas);
 
+    ResponseDTO<?> consultaTranferenciaDetallada(String key,
+                                                 String apiKey,
+                                                 GroupConsultaTransBffRequestDto consultas);
+
     ResponseDTO<?> confirmacionTranferencia(String key,
                                             String apiKey,
                                             GroupConfirmaTransBffRequestDto consultas);
+
+    ResponseDTO<?> confirmacionTranferenciaDetallada(String key,
+                                                     String apiKey,
+                                                     GroupConfirmaTransBffRequestDto confirmaciones);
 }

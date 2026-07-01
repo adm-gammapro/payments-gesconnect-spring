@@ -147,7 +147,9 @@ public class SolicitudFlujoServiceImpl implements SolicitudFlujoService {
             ejecucion.setFechaAuditoria(LocalDateTime.now());
             ejecucion.setIpAuditoria(req.getIpAuditoria());
             ejecucion.setTerminalAuditoria(req.getTerminalAuditoria());
+
             EjecucionResponseDto responseConsulta = ejecucionService.consultarTransferenciaInmediata(ejecucion);
+
             if(responseConsulta.getStatus().equals(Constante.KEY_ERROR_CODE)) {
                 ObservacionCambioEstadoRequestDto observacion = cargarDatosObservacion(req,
                         Constante.EVENTO_VALIDAR,
